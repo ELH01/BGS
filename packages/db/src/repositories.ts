@@ -556,3 +556,84 @@ export async function getStockUnitPool(
     };
   });
 }
+
+/**
+ * Stock available to the solver, with each parcel's site location attached.
+ *
+ * The spatial band is a function of where the bank site sits relative to the
+ * development, so the solver needs the site's LPA and NCA alongside the pool
+ * figures. Joined here rather than fetched per parcel, which would be a query
+ * per option on a page that lists them all.
+ */
+export interface SolverStockRow {
+  stockParcelId: string;
+  siteId: string;
+  siteName: string;
+  siteLpaCode: string | null;
+  siteNcaCode: string | null;
+  parcelReference: string;
+  module: MetricModule;
+  broadHabitat: string;
+  habitatType: string;
+  distinctiveness: DistinctivenessBand;
+  condition: ConditionBand;
+  availableUnits: UnitQuantity;
+  listPricePerUnit: Money | null;
+}
+
+export async function getSolverStock(
+  db: Queryable,
+  options: { module: MetricModule; siteId?: string },
+): Promise<SolverStockRow[]> {
+  const params: string[] = [options.module];
+  let where = 'p.module = $1';
+  if (options.siteId) {
+    params.push(options.siteId);
+    where += ` AND p.site_id = $${params.length}`;
+  }
+
+  const { rows } = await db.query<{
+    stock_parcel_id: string;
+    site_id: string;
+    site_name: string;
+    site_lpa_code: string | null;
+    site_nca_code: string | null;
+    parcel_reference: string;
+    module: MetricModule;
+    broad_habitat: string;
+    habitat_type: string;
+    distinctiveness: DistinctivenessBand;
+    condition: ConditionBand;
+    available_units: string;
+    list_price_per_unit: string | null;
+  }>(
+    `SELECT p.stock_parcel_id, p.site_id, s.name AS site_name,
+            s.lpa_code AS site_lpa_code, s.nca_code AS site_nca_code,
+            p.parcel_reference, p.module, p.broad_habitat, p.habitat_type,
+            p.distinctiveness, p.condition, p.available_units, p.list_price_per_unit
+       FROM stock_unit_pool p
+       JOIN habitat_bank_site s ON s.id = p.site_id
+      WHERE ${where} AND p.available_units > 0
+      ORDER BY p.parcel_reference`,
+    params,
+  );
+
+  return rows.map((row) => {
+    const module = assertMetricModule(row.module);
+    return {
+      stockParcelId: row.stock_parcel_id,
+      siteId: row.site_id,
+      siteName: row.site_name,
+      siteLpaCode: row.site_lpa_code,
+      siteNcaCode: row.site_nca_code,
+      parcelReference: row.parcel_reference,
+      module,
+      broadHabitat: row.broad_habitat,
+      habitatType: row.habitat_type,
+      distinctiveness: row.distinctiveness,
+      condition: row.condition,
+      availableUnits: UnitQuantity.of(module, row.available_units),
+      listPricePerUnit: row.list_price_per_unit === null ? null : Money.of(row.list_price_per_unit),
+    };
+  });
+}

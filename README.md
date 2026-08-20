@@ -45,7 +45,8 @@ server and an empty database; see the note at the top of that file.
 
 | Path | What it holds |
 |---|---|
-| `packages/core` | Precision primitives, trading rules, spatial multipliers. No I/O. |
+| `packages/core` | Precision primitives, trading rules, spatial multipliers, the allocation solver. No I/O. |
+| `packages/metric` | DEFRA metric cell mappings and the off-site workbook write-back. |
 | `packages/db` | SQL migrations, tenant-scoped client, repositories. |
 | `apps/api` | Fastify HTTP API, session auth. |
 | `apps/web` | React client. |
@@ -95,20 +96,28 @@ the policies.
 
 ## What is built, and what is not
 
-Phase 1 of the specification, plus the auth and tenancy that third-party logins
-require:
+Built:
 
 - Organisations, users, sessions, management grants
 - Bank operators with per-operator quote branding
 - Habitat bank sites, including an LNRS field held ready but unused
-- Stock parcels entered by hand, with list pricing
+- Stock parcels with list pricing and physical extent
 - The derived stock unit pool and exposure view
+- Developers, keeping the purchasing entity apart from the development site
+- The three-module allocation solver, over an API endpoint
+- The quote lifecycle: allocation, the hard target gate, exposure,
+  cancellation, reservation, sale with partial retirement, audited sale
+  reversal
+- Metric cell mappings and the off-site workbook write-back
 
-Not yet built: metric workbook import, the allocation solver and interactive
-table, the quote lifecycle, Word export, off-site metric write-back, and backup
-and restore. The domain pieces those depend on — trading rules, spatial
-multipliers, the buffered target, the quote and allocation schema with its
-status ladder — are in place and tested.
+Not yet built: the bank and developer metric **importers** (the mapping layer
+they need exists; the parsers are waiting on sample workbooks — see below), the
+interactive allocation table in the browser, the quote Word export, and backup
+and restore.
+
+The web client currently covers phase 1 — operators, sites, stock and exposure.
+The solver and quote lifecycle are reachable over the API but do not yet have
+screens.
 
 ## Values awaiting confirmation
 
@@ -124,6 +133,8 @@ them is flagged wherever it appears.
 | Buffer above 10% net gain | `NET_GAIN_BUFFER_PERCENT`, default `0.1` | Suggested |
 | Stale-quote threshold | `STALE_QUOTE_DAYS`, default `60` | Suggested |
 
+| Metric 4.0 cell mapping | `packages/metric/src/versions/metric-4-0.ts` | Transcribed from a working tool, five discrepancies open |
+
 Also still needed: sample bank and developer metric workbooks to build the
 parsers against, branding assets, and a decision on VAT treatment — which
 determines whether quotes need a subtotal/VAT/total breakdown or a flat total.
@@ -131,3 +142,37 @@ determines whether quotes need a subtotal/VAT/total breakdown or a flat total.
 Spatial risk is built as a swappable *scheme* rather than a fixed lookup, so the
 signalled move onto LNRS boundaries can be added alongside the current one and
 selected per site without the solver changing.
+
+## The metric cell mapping
+
+`packages/metric` holds the sheet, row and column addresses for the statutory
+metric, isolated from everything else so that a new DEFRA version is a new
+mapping file and nothing more. The 4.0 mapping was transcribed from a working
+QGIS export tool that writes into these workbooks in the field, so the addresses
+have been used against real files rather than inferred.
+
+Two things to know before touching it.
+
+**Sheet names are reproduced exactly, typos included.** The workbook spells one
+sheet "Enhancment" and drops the apostrophe from "WaterC'" on one sheet alone.
+Tidying either means the sheet is never found.
+
+**Five discrepancies are recorded rather than resolved**, listed in that file's
+`discrepancies` array and surfaced through the API. The most significant: `A-3`
+and `D-3` map column `AE` to different fields, and the two off-site enhancement
+sheets have no spatial risk column mapped though every other off-site sheet
+does. Each needs checking against a real workbook; guessing would produce a file
+that looks right and is wrong.
+
+The writer patches the XML inside the workbook zip rather than round-tripping
+through a spreadsheet library, so the VBA project, data validation and
+conditional formatting the metric depends on survive untouched. It writes only
+the cells asked for, keeps each cell's existing style, marks the workbook to
+recalculate on open — nothing here evaluates the metric's formulas — and reports
+any cell that held a formula before being written, since the metric's input
+cells should not contain formulas and that almost certainly means the mapping is
+pointing somewhere wrong.
+
+Note that the metric takes **hectares and kilometres, not units**. An allocation
+is written as the fraction of the parcel being sold applied to its physical
+extent, which is why `stock_parcel.extent` exists.

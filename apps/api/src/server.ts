@@ -9,6 +9,7 @@ import configRoutes from './routes/config.js';
 import developerRoutes from './routes/developers.js';
 import operatorRoutes from './routes/operators.js';
 import quoteRoutes from './routes/quotes.js';
+import solverRoutes from './routes/solver.js';
 import stockRoutes from './routes/stock.js';
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -55,6 +56,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(developerRoutes);
   await app.register(stockRoutes);
   await app.register(quoteRoutes);
+  await app.register(solverRoutes);
 
   return app;
 }

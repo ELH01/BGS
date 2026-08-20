@@ -6,6 +6,16 @@ import {
   type DistinctivenessBand,
   type MetricModule,
 } from '@bgs/core';
+
+/**
+ * Strategic significance, as the metric uses it to weight a parcel's units.
+ * Stored as a stable slug; the workbook's own wording lives with the metric
+ * version mapping in @bgs/metric.
+ */
+export type StrategicSignificanceBand =
+  | 'formally-identified'
+  | 'ecologically-desirable'
+  | 'not-in-strategy';
 import type { Queryable } from './client.js';
 
 /**
@@ -324,6 +334,16 @@ export interface StockParcel {
   totalUnits: UnitQuantity;
   retiredUnits: UnitQuantity;
   listPricePerUnit: Money | null;
+  /**
+   * Inputs the metric uses to compute this parcel's units. Held so that
+   * writing an allocation into a developer's workbook reproduces the same
+   * calculation the bank's own metric made — the workbook recomputes from
+   * scratch, so a missing input means a different answer.
+   */
+  extent: string | null;
+  strategicSignificance: StrategicSignificanceBand | null;
+  habitatCreatedInAdvanceYears: string | null;
+  delayYears: string | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -343,6 +363,10 @@ interface ParcelRow {
   total_units: string;
   retired_units: string;
   list_price_per_unit: string | null;
+  extent: string | null;
+  strategic_significance: StrategicSignificanceBand | null;
+  habitat_created_in_advance_years: string | null;
+  delay_years: string | null;
   notes: string | null;
   created_at: Date;
   updated_at: Date;
@@ -364,6 +388,10 @@ function toParcel(row: ParcelRow): StockParcel {
     totalUnits: UnitQuantity.of(module, row.total_units),
     retiredUnits: UnitQuantity.of(module, row.retired_units),
     listPricePerUnit: row.list_price_per_unit === null ? null : Money.of(row.list_price_per_unit),
+    extent: row.extent,
+    strategicSignificance: row.strategic_significance,
+    habitatCreatedInAdvanceYears: row.habitat_created_in_advance_years,
+    delayYears: row.delay_years,
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -382,6 +410,10 @@ export interface StockParcelInput {
   condition?: ConditionBand | undefined;
   totalUnits: UnitQuantity;
   listPricePerUnit?: Money | null | undefined;
+  extent?: string | null | undefined;
+  strategicSignificance?: StrategicSignificanceBand | null | undefined;
+  habitatCreatedInAdvanceYears?: string | null | undefined;
+  delayYears?: string | null | undefined;
   notes?: string | null | undefined;
 }
 
@@ -396,8 +428,9 @@ export async function createStockParcel(db: Queryable, input: StockParcelInput):
     `INSERT INTO stock_parcel (
         organisation_id, site_id, metric_import_id, parcel_reference, module,
         broad_habitat, habitat_type, distinctiveness, condition,
-        total_units, list_price_per_unit, notes
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        total_units, list_price_per_unit, notes,
+        extent, strategic_significance, habitat_created_in_advance_years, delay_years
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
     [
       input.organisationId,
       input.siteId,
@@ -413,11 +446,50 @@ export async function createStockParcel(db: Queryable, input: StockParcelInput):
       input.totalUnits.toString(),
       input.listPricePerUnit?.toString() ?? null,
       input.notes ?? null,
+      input.extent ?? null,
+      input.strategicSignificance ?? null,
+      input.habitatCreatedInAdvanceYears ?? null,
+      input.delayYears ?? null,
     ],
   );
   const row = rows[0];
   if (!row) throw new Error('Insert returned no row.');
   return toParcel(row);
+}
+
+/**
+ * Update the metric inputs on a parcel.
+ *
+ * Separate from creation because these often arrive later: a parcel gets
+ * recorded from a bank metric, and the strategic significance or the years in
+ * advance are filled in once someone has checked the source workbook.
+ */
+export async function updateStockParcelMetricInputs(
+  db: Queryable,
+  id: string,
+  input: {
+    extent?: string | null;
+    strategicSignificance?: StrategicSignificanceBand | null;
+    habitatCreatedInAdvanceYears?: string | null;
+    delayYears?: string | null;
+  },
+): Promise<StockParcel | null> {
+  const { rows } = await db.query<ParcelRow>(
+    `UPDATE stock_parcel SET
+        extent = COALESCE($2, extent),
+        strategic_significance = COALESCE($3, strategic_significance),
+        habitat_created_in_advance_years = COALESCE($4, habitat_created_in_advance_years),
+        delay_years = COALESCE($5, delay_years)
+      WHERE id = $1 RETURNING *`,
+    [
+      id,
+      input.extent ?? null,
+      input.strategicSignificance ?? null,
+      input.habitatCreatedInAdvanceYears ?? null,
+      input.delayYears ?? null,
+    ],
+  );
+  return rows[0] ? toParcel(rows[0]) : null;
 }
 
 export async function listStockParcels(

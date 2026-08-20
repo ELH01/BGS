@@ -352,3 +352,94 @@ describe('configuration reporting (§5)', () => {
     ]);
   });
 });
+
+describe('metric inputs on a stock parcel', () => {
+  let client: Client;
+  let siteId: string;
+
+  beforeAll(async () => {
+    client = await signUp('Metric Inputs Org', 'metric-inputs', 'metric@example.test');
+    const operator = await client.post('/api/bank-operators', { name: 'Inputs Banks' });
+    const site = await client.post('/api/sites', {
+      bankOperatorId: operator.body.bankOperator.id,
+      name: 'Inputs Site',
+    });
+    siteId = site.body.site.id;
+  });
+
+  const newParcel = (over: Record<string, unknown> = {}) => ({
+    siteId,
+    parcelReference: `IN-${Math.random().toString(36).slice(2, 8)}`,
+    module: 'area',
+    broadHabitat: 'Grassland',
+    habitatType: 'Other neutral grassland',
+    distinctiveness: 'medium',
+    condition: 'moderate',
+    totalUnits: '11.7285',
+    ...over,
+  });
+
+  it('reports what a parcel still needs before it can reach a developer’s metric', async () => {
+    const response = await client.post('/api/stock-parcels', newParcel());
+    expect(response.status).toBe(201);
+
+    const readiness = response.body.stockParcel.exportReadiness;
+    expect(readiness.ready).toBe(false);
+    expect(readiness.missing).toContain('strategic significance');
+    expect(readiness.missing).toContain('physical extent (hectares or kilometres)');
+  });
+
+  it('accepts every metric input at creation and reports the parcel complete', async () => {
+    const response = await client.post(
+      '/api/stock-parcels',
+      newParcel({
+        extent: '5.0',
+        strategicSignificance: 'formally-identified',
+        habitatCreatedInAdvanceYears: '3',
+        delayYears: '0',
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(response.body.stockParcel.extent).toBe('5.000000');
+    expect(response.body.stockParcel.strategicSignificance).toBe('formally-identified');
+    expect(response.body.stockParcel.exportReadiness.ready).toBe(true);
+  });
+
+  it('fills the inputs in later, since they often arrive after the parcel', async () => {
+    const created = await client.post('/api/stock-parcels', newParcel());
+    const parcelId = created.body.stockParcel.id;
+
+    const response = await client.put(`/api/stock-parcels/${parcelId}/metric-inputs`, {
+      extent: '4.5',
+      strategicSignificance: 'ecologically-desirable',
+      habitatCreatedInAdvanceYears: '2.5',
+      delayYears: '0',
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.stockParcel.exportReadiness.ready).toBe(true);
+    expect(response.body.stockParcel.habitatCreatedInAdvanceYears).toBe('2.50');
+  });
+
+  it('rejects a strategic significance the metric does not have', async () => {
+    const response = await client.post('/api/stock-parcels', newParcel({ strategicSignificance: 'very-important' }));
+    expect(response.status).toBe(400);
+  });
+
+  it('rejects years that are not a number', async () => {
+    const response = await client.post(
+      '/api/stock-parcels',
+      newParcel({ habitatCreatedInAdvanceYears: 'about three' }),
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it('keeps extent out of the unit precision system', async () => {
+    // Extent is a physical measurement, not a biodiversity unit quantity, so
+    // it is not held at the module's 4dp scale.
+    const response = await client.post('/api/stock-parcels', newParcel({ extent: '5.123456' }));
+    expect(response.body.stockParcel.extent).toBe('5.123456');
+    expect(response.body.stockParcel.totalUnits).toBe('11.7285');
+  });
+});

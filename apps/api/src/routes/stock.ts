@@ -7,12 +7,15 @@ import {
   Money,
   UnitQuantity,
 } from '@bgs/core';
+import { checkParcelExportReadiness } from '@bgs/metric';
 import {
   createStockParcel,
   getStockUnitPool,
   listStockParcels,
   setStockParcelListPrice,
+  updateStockParcelMetricInputs,
   withTenant,
+  type StockParcel,
 } from '@bgs/db';
 import { describeDatabaseError, parseBody } from '../http.js';
 
@@ -34,6 +37,14 @@ const moneyString = z
   .trim()
   .regex(/^\d+(\.\d{1,2})?$/, 'Enter an amount in pounds and pence, e.g. 12500.00.');
 
+const STRATEGIC_SIGNIFICANCE = ['formally-identified', 'ecologically-desirable', 'not-in-strategy'] as const;
+
+/** Years, to two decimal places; the metric accepts part years. */
+const yearsString = z
+  .string()
+  .trim()
+  .regex(/^\d+(\.\d{1,2})?$/, 'Enter a number of years, e.g. 3 or 3.5.');
+
 const parcelSchema = z.object({
   organisationId: z.string().uuid().optional(),
   siteId: z.string().uuid(),
@@ -45,8 +56,43 @@ const parcelSchema = z.object({
   condition: z.enum(CONDITION_BANDS).default('n/a'),
   totalUnits: decimalString,
   listPricePerUnit: moneyString.nullish(),
+  // Inputs the metric uses to compute units. Held on the parcel so an
+  // allocation written into a developer's workbook reproduces the same
+  // calculation the bank's own metric made.
+  extent: decimalString.nullish(),
+  strategicSignificance: z.enum(STRATEGIC_SIGNIFICANCE).nullish(),
+  habitatCreatedInAdvanceYears: yearsString.nullish(),
+  delayYears: yearsString.nullish(),
   notes: z.string().trim().max(5000).nullish(),
 });
+
+const metricInputsSchema = z.object({
+  extent: decimalString.nullish(),
+  strategicSignificance: z.enum(STRATEGIC_SIGNIFICANCE).nullish(),
+  habitatCreatedInAdvanceYears: yearsString.nullish(),
+  delayYears: yearsString.nullish(),
+});
+
+/**
+ * Whether a parcel carries everything a developer's metric needs.
+ *
+ * Reported alongside the parcel so a missing figure shows up on the stock
+ * screen, rather than surfacing when someone is trying to send a workbook to a
+ * client.
+ */
+function exportReadiness(parcel: StockParcel) {
+  return checkParcelExportReadiness({
+    reference: parcel.parcelReference,
+    broadHabitat: parcel.broadHabitat,
+    habitatType: parcel.habitatType,
+    condition: parcel.condition,
+    strategicSignificance: parcel.strategicSignificance,
+    totalUnits: parcel.totalUnits,
+    extent: parcel.extent,
+    habitatCreatedInAdvanceYears: parcel.habitatCreatedInAdvanceYears,
+    delayYears: parcel.delayYears,
+  });
+}
 
 const listPriceSchema = z.object({
   listPricePerUnit: moneyString.nullable(),
@@ -69,7 +115,9 @@ export default async function stockRoutes(app: FastifyInstance): Promise<void> {
           ...(module ? { module: module as (typeof METRIC_MODULES)[number] } : {}),
         }),
       );
-      return { stockParcels: parcels };
+      return {
+        stockParcels: parcels.map((parcel) => ({ ...parcel, exportReadiness: exportReadiness(parcel) })),
+      };
     },
   );
 
@@ -106,10 +154,14 @@ export default async function stockRoutes(app: FastifyInstance): Promise<void> {
           condition: body.condition,
           totalUnits,
           listPricePerUnit: body.listPricePerUnit ? Money.parse(body.listPricePerUnit) : null,
+          extent: body.extent ?? null,
+          strategicSignificance: body.strategicSignificance ?? null,
+          habitatCreatedInAdvanceYears: body.habitatCreatedInAdvanceYears ?? null,
+          delayYears: body.delayYears ?? null,
           notes: body.notes ?? null,
         }),
       );
-      return reply.code(201).send({ stockParcel: parcel });
+      return reply.code(201).send({ stockParcel: { ...parcel, exportReadiness: exportReadiness(parcel) } });
     } catch (error) {
       const described = describeDatabaseError(error);
       if (described) {
@@ -141,6 +193,30 @@ export default async function stockRoutes(app: FastifyInstance): Promise<void> {
       );
       if (!parcel) return reply.code(404).send({ error: 'Stock parcel not found.' });
       return { stockParcel: parcel };
+    },
+  );
+
+  /**
+   * Fill in the metric inputs, which often arrive after the parcel itself.
+   */
+  app.put<{ Params: { id: string } }>(
+    '/api/stock-parcels/:id/metric-inputs',
+    { onRequest: [app.requireWriteAccess] },
+    async (request, reply) => {
+      const body = parseBody(metricInputsSchema, request.body, reply);
+      if (!body) return;
+      const auth = request.auth!;
+
+      const parcel = await withTenant(auth.organisationId, (tx) =>
+        updateStockParcelMetricInputs(tx, request.params.id, {
+          extent: body.extent ?? null,
+          strategicSignificance: body.strategicSignificance ?? null,
+          habitatCreatedInAdvanceYears: body.habitatCreatedInAdvanceYears ?? null,
+          delayYears: body.delayYears ?? null,
+        }),
+      );
+      if (!parcel) return reply.code(404).send({ error: 'Stock parcel not found.' });
+      return { stockParcel: { ...parcel, exportReadiness: exportReadiness(parcel) } };
     },
   );
 

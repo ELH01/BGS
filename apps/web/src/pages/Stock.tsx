@@ -4,6 +4,7 @@ import {
   CONDITION_LABEL,
   DISTINCTIVENESS_LABEL,
   MODULE_LABEL,
+  STRATEGIC_SIGNIFICANCE_LABEL,
   api,
   formatMoney,
   type ConditionBand,
@@ -11,6 +12,7 @@ import {
   type MetricModule,
   type Site,
   type StockParcel,
+  type StrategicSignificanceBand,
 } from '../api';
 import { Empty, ErrorBanner, Field } from '../components/common';
 import { useSession } from '../session';
@@ -18,6 +20,11 @@ import { useSession } from '../session';
 const MODULES: MetricModule[] = ['area', 'hedgerow', 'watercourse'];
 const DISTINCTIVENESS: DistinctivenessBand[] = ['very-low', 'low', 'medium', 'high', 'very-high'];
 const CONDITIONS: ConditionBand[] = ['n/a', 'poor', 'fairly-poor', 'moderate', 'fairly-good', 'good'];
+const SIGNIFICANCE: StrategicSignificanceBand[] = [
+  'formally-identified',
+  'ecologically-desirable',
+  'not-in-strategy',
+];
 
 export default function Stock(): ReactNode {
   const { config } = useSession();
@@ -74,6 +81,10 @@ export default function Stock(): ReactNode {
         // double before the server could see it.
         totalUnits: text('totalUnits'),
         listPricePerUnit: text('listPricePerUnit') || null,
+        extent: text('extent') || null,
+        strategicSignificance: text('strategicSignificance') || null,
+        habitatCreatedInAdvanceYears: text('habitatCreatedInAdvanceYears') || null,
+        delayYears: text('delayYears') || null,
         notes: text('notes') || null,
       });
       setAdding(false);
@@ -220,6 +231,43 @@ export default function Stock(): ReactNode {
               </Field>
             </div>
 
+            <h3 style={{ marginTop: '1.25rem' }}>Metric inputs</h3>
+            <p className="hint" style={{ marginTop: '-0.35rem', marginBottom: '0.75rem' }}>
+              The metric workbook is what determines units, and it recomputes them from these values
+              whenever this parcel is written into a developer&rsquo;s metric. Leave one out and their
+              workbook lands on a different figure from the one you quoted.
+            </p>
+
+            <div className="field-row">
+              <Field
+                label={module === 'area' ? 'Area (hectares)' : 'Length (km)'}
+                hint="physical extent of the parcel"
+              >
+                <input name="extent" inputMode="decimal" pattern="\d+(\.\d+)?" placeholder="5.0" />
+              </Field>
+              <Field label="Strategic significance">
+                <select name="strategicSignificance" defaultValue="">
+                  <option value="">Not recorded</option>
+                  {SIGNIFICANCE.map((band) => (
+                    <option key={band} value={band}>
+                      {STRATEGIC_SIGNIFICANCE_LABEL[band]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Created in advance" hint="years">
+                <input
+                  name="habitatCreatedInAdvanceYears"
+                  inputMode="decimal"
+                  pattern="\d+(\.\d{1,2})?"
+                  placeholder="3"
+                />
+              </Field>
+              <Field label="Delay before creation" hint="years, usually 0 for a bank">
+                <input name="delayYears" inputMode="decimal" pattern="\d+(\.\d{1,2})?" placeholder="0" />
+              </Field>
+            </div>
+
             <Field label="Notes">
               <textarea name="notes" rows={2} />
             </Field>
@@ -249,9 +297,11 @@ export default function Stock(): ReactNode {
                   <th>Habitat</th>
                   <th>Distinctiveness</th>
                   <th>Condition</th>
+                  <th className="numeric">Extent</th>
                   <th className="numeric">Total units</th>
                   <th className="numeric">Retired</th>
                   <th className="numeric">List price</th>
+                  <th>Metric inputs</th>
                 </tr>
               </thead>
               <tbody>
@@ -267,6 +317,7 @@ export default function Stock(): ReactNode {
                     </td>
                     <td>{DISTINCTIVENESS_LABEL[parcel.distinctiveness]}</td>
                     <td>{CONDITION_LABEL[parcel.condition]}</td>
+                    <td className="numeric">{parcel.extent ?? '—'}</td>
                     <td className="numeric">{parcel.totalUnits}</td>
                     <td className="numeric">{parcel.retiredUnits}</td>
                     <td className="numeric">
@@ -286,6 +337,15 @@ export default function Stock(): ReactNode {
                         <button className="link" onClick={() => setPricing(parcel.id)}>
                           {formatMoney(parcel.listPricePerUnit)}
                         </button>
+                      )}
+                    </td>
+                    <td>
+                      {parcel.exportReadiness?.ready ? (
+                        <span className="badge">complete</span>
+                      ) : (
+                        <span className="badge over" title={parcel.exportReadiness?.missing.join('; ')}>
+                          {parcel.exportReadiness?.missing.length ?? 0} missing
+                        </span>
                       )}
                     </td>
                   </tr>

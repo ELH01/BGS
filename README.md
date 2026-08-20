@@ -51,7 +51,7 @@ server and an empty database; see the note at the top of that file.
 | `apps/api` | Fastify HTTP API, session auth. |
 | `apps/web` | React client. |
 
-## Two things worth knowing before changing anything
+## Three things worth knowing before changing anything
 
 ### Precision is enforced in three places, deliberately
 
@@ -75,6 +75,31 @@ storage precision, not a display convention.
 
 Money is a separate 2dp system and the two are not interchangeable.
 `Money.lineTotal` is the single sanctioned crossing point between them.
+
+### This platform never computes biodiversity units
+
+The metric workbook is what determines units. It takes habitat type, condition,
+strategic significance, extent and the temporal figures, and calculates from
+them. Nothing here re-implements that arithmetic, and nothing here should: it is
+a statutory calculation that DEFRA revises, and a second implementation would
+be one more thing to keep in step, silently wrong whenever it fell behind.
+
+So units enter the system one way — read from a bank's own completed metric —
+and leave it one way: when an allocation is written into a developer's metric,
+the platform writes back the *inputs*, and that workbook recomputes.
+
+The consequence worth internalising: **the developer's workbook recomputes from
+scratch, so every input has to reach it.** Miss one and their metric lands on a
+different figure from the one the parcel was quoted on, with nothing obviously
+wrong on either side. That is why `stock_parcel` carries extent, condition,
+strategic significance, years created in advance and delay years alongside the
+units themselves, and why the API reports an `exportReadiness` on every parcel
+naming anything still missing.
+
+It is also why the spatial multiplier is *not* applied to the extent that gets
+written. The multiplier reaches the workbook as the spatial risk category in its
+own column, and the workbook applies it. Applying it here as well would deduct
+it twice.
 
 ### Tenant isolation is the database's job, not the query layer's
 
@@ -134,6 +159,7 @@ them is flagged wherever it appears.
 | Stale-quote threshold | `STALE_QUOTE_DAYS`, default `60` | Suggested |
 
 | Metric 4.0 cell mapping | `packages/metric/src/versions/metric-4-0.ts` | Transcribed from a working tool, five discrepancies open |
+| Metric 4.0 dropdown wording | `packages/metric/src/labels.ts` | Placeholder wording — the highest-risk unconfirmed item, see below |
 
 Also still needed: sample bank and developer metric workbooks to build the
 parsers against, branding assets, and a decision on VAT treatment — which
@@ -176,3 +202,16 @@ pointing somewhere wrong.
 Note that the metric takes **hectares and kilometres, not units**. An allocation
 is written as the fraction of the parcel being sold applied to its physical
 extent, which is why `stock_parcel.extent` exists.
+
+### The dropdown wording is the riskiest unconfirmed thing here
+
+`labels.ts` holds the exact text the metric's dropdowns use — condition,
+strategic significance, spatial risk category — because the platform stores
+stable slugs and the workbook wants its own words.
+
+These carry more risk than the cell addresses. A wrong column puts a value
+somewhere visible and someone notices. A wrong dropdown label writes text the
+metric's lookup formulas do not recognise, and since data validation only fires
+on manual entry, Excel accepts it without complaint — the units come out as an
+error or a zero rather than as an obvious fault. Confirm this wording against a
+real workbook's dropdown lists before trusting an export.

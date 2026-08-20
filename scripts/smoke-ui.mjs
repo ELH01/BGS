@@ -86,6 +86,31 @@ await step('add an area parcel with over-precise units', async () => {
   await page.waitForSelector('td:has-text("12.3457")');
 });
 
+await step('parcel missing metric inputs is flagged as incomplete', async () => {
+  // The workbook computes units from these, so a parcel without them cannot
+  // be written into a developer's metric.
+  await page.waitForSelector('.badge.over:has-text("missing")');
+});
+
+await step('add a parcel with every metric input recorded', async () => {
+  await page.getByRole('button', { name: 'Add parcel' }).click();
+  await page.fill('input[name="parcelReference"]', 'F2');
+  await page.fill('input[name="broadHabitat"]', 'Grassland');
+  await page.fill('input[name="habitatType"]', 'Other neutral grassland');
+  await page.selectOption('select[name="distinctiveness"]', 'medium');
+  await page.selectOption('select[name="condition"]', 'good');
+  await page.fill('input[name="totalUnits"]', '11.7285');
+  await page.fill('input[name="listPricePerUnit"]', '22000.00');
+  await page.fill('input[name="extent"]', '5.0');
+  await page.selectOption('select[name="strategicSignificance"]', 'formally-identified');
+  await page.fill('input[name="habitatCreatedInAdvanceYears"]', '3');
+  await page.fill('input[name="delayYears"]', '0');
+  await page.getByRole('button', { name: 'Add parcel' }).click();
+  await page.waitForSelector('.badge:has-text("complete")');
+});
+
+await page.screenshot({ path: (process.argv[2] ?? '.') + '/stock.png', fullPage: true });
+
 await step('add a hedgerow parcel, held at 3dp', async () => {
   await page.getByRole('button', { name: 'Add parcel' }).click();
   await page.selectOption('select[name="module"]', 'hedgerow');

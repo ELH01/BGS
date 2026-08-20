@@ -90,6 +90,23 @@ export interface Site {
   notes: string | null;
 }
 
+export type StrategicSignificanceBand =
+  | 'formally-identified'
+  | 'ecologically-desirable'
+  | 'not-in-strategy';
+
+export const STRATEGIC_SIGNIFICANCE_LABEL: Record<StrategicSignificanceBand, string> = {
+  'formally-identified': 'Formally identified in local strategy',
+  'ecologically-desirable': 'Ecologically desirable, not in strategy',
+  'not-in-strategy': 'Not in local strategy',
+};
+
+/** What a parcel still needs before it can be written into a developer's metric. */
+export interface ExportReadiness {
+  ready: boolean;
+  missing: string[];
+}
+
 export interface StockParcel {
   id: string;
   siteId: string;
@@ -102,7 +119,17 @@ export interface StockParcel {
   totalUnits: string;
   retiredUnits: string;
   listPricePerUnit: string | null;
+  /**
+   * Inputs the metric uses to compute this parcel's units. The workbook does
+   * the calculation, so all of these have to reach it for a developer's metric
+   * to arrive at the figure the parcel was quoted on.
+   */
+  extent: string | null;
+  strategicSignificance: StrategicSignificanceBand | null;
+  habitatCreatedInAdvanceYears: string | null;
+  delayYears: string | null;
   notes: string | null;
+  exportReadiness?: ExportReadiness;
 }
 
 export interface PoolEntry {

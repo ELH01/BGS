@@ -32,6 +32,9 @@ importers:
       '@bgs/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@bgs/metric':
+        specifier: workspace:*
+        version: link:../../packages/metric
       '@fastify/cookie':
         specifier: ^11.0.1
         version: 11.1.2

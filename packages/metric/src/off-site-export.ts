@@ -1,5 +1,13 @@
 import Decimal from 'decimal.js';
-import { UnitQuantity, type MetricModule } from '@bgs/core';
+import { UnitQuantity, type LpaNcaBand, type MetricModule } from '@bgs/core';
+import {
+  conditionLabel,
+  getMetricLabels,
+  spatialRiskLabel,
+  strategicSignificanceLabel,
+  type ConditionSlug,
+  type StrategicSignificanceSlug,
+} from './labels.js';
 import { NUMERIC_FIELDS, sheetCapacity, type MetricField, type SheetMapping } from './fields.js';
 import { getMetricMapping, offSiteAllocationSheet } from './registry.js';
 import type { CellValue, CellWrite } from './sheet-xml.js';
@@ -45,9 +53,110 @@ export interface OffSiteAllocationRow {
   parcelTotalUnits: UnitQuantity;
   /** The parcel's physical size: hectares for area, kilometres otherwise. */
   parcelExtent: string;
-  createdInAdvanceYears?: number | undefined;
-  delayYears?: number | undefined;
+  createdInAdvanceYears?: string | number | undefined;
+  delayYears?: string | number | undefined;
   userComments?: string | undefined;
+}
+
+/**
+ * A stock parcel as the exporter needs it: the metric inputs the bank's own
+ * workbook used to arrive at this parcel's units.
+ *
+ * All of them have to be written into the developer's workbook, because that
+ * workbook recomputes the units from scratch. Omit one and it computes a
+ * different figure from the one the parcel was sold on.
+ */
+export interface ParcelForExport {
+  reference: string;
+  broadHabitat: string;
+  /** Habitat type for area and hedgerow; watercourse type for watercourse. */
+  habitatType: string;
+  condition: ConditionSlug;
+  strategicSignificance: StrategicSignificanceSlug | null;
+  totalUnits: UnitQuantity;
+  /** Hectares for area, kilometres otherwise. */
+  extent: string | null;
+  habitatCreatedInAdvanceYears: string | null;
+  delayYears: string | null;
+}
+
+export interface ExportReadiness {
+  ready: boolean;
+  /** Plain-English list of what is missing, for showing next to the parcel. */
+  missing: string[];
+}
+
+/**
+ * Whether a parcel carries everything the developer's workbook needs.
+ *
+ * Worth checking before the user reaches an export, so a missing figure is a
+ * prompt on the stock screen rather than a failure at the point of sending a
+ * file to a client.
+ */
+export function checkParcelExportReadiness(parcel: ParcelForExport): ExportReadiness {
+  const missing: string[] = [];
+
+  if (parcel.extent === null || parcel.extent.trim() === '') {
+    missing.push('physical extent (hectares or kilometres)');
+  }
+  if (parcel.strategicSignificance === null) {
+    missing.push('strategic significance');
+  }
+  if (parcel.habitatCreatedInAdvanceYears === null) {
+    // Not fatal, but silence here understates a banked parcel, so it is
+    // surfaced rather than defaulted quietly.
+    missing.push('years the habitat was created in advance');
+  }
+  if (parcel.totalUnits.isZero()) {
+    missing.push('units (the parcel generates none)');
+  }
+
+  return { ready: missing.length === 0, missing };
+}
+
+/**
+ * Build an export row from a stored parcel and one allocation against it.
+ *
+ * This is where stored slugs become the words the workbook's dropdowns use.
+ * Doing it here rather than at each call site means there is exactly one place
+ * that has to be right when a metric version changes its wording.
+ */
+export function allocationRowFromParcel(
+  parcel: ParcelForExport,
+  allocation: {
+    allocatedUnits: UnitQuantity;
+    spatialBand: LpaNcaBand;
+    userComments?: string | undefined;
+  },
+  metricVersion?: string,
+): OffSiteAllocationRow {
+  if (parcel.extent === null) {
+    throw new RangeError(
+      `Parcel "${parcel.reference}" has no extent recorded, so the area or length to write into the metric cannot be worked out.`,
+    );
+  }
+  if (parcel.strategicSignificance === null) {
+    throw new RangeError(
+      `Parcel "${parcel.reference}" has no strategic significance recorded. The metric uses it to compute units, so writing the parcel without it would give the developer a different figure from the one quoted.`,
+    );
+  }
+
+  return {
+    reference: parcel.reference,
+    broadHabitat: parcel.broadHabitat,
+    habitatType: parcel.habitatType,
+    condition: conditionLabel(parcel.condition, metricVersion),
+    strategicSignificance: strategicSignificanceLabel(parcel.strategicSignificance, metricVersion),
+    spatialRiskCategory: spatialRiskLabel(allocation.spatialBand, metricVersion),
+    allocatedUnits: allocation.allocatedUnits,
+    parcelTotalUnits: parcel.totalUnits,
+    parcelExtent: parcel.extent,
+    // Written even when zero: an empty cell and a stated zero are not the same
+    // to the metric, and a bank parcel almost always has a non-zero advance.
+    createdInAdvanceYears: parcel.habitatCreatedInAdvanceYears ?? '0',
+    delayYears: parcel.delayYears ?? '0',
+    ...(allocation.userComments === undefined ? {} : { userComments: allocation.userComments }),
+  };
 }
 
 export interface OffSiteExportOptions {
@@ -203,6 +312,13 @@ export function writeOffSiteAllocation(
   if (mapping.status === 'unconfirmed') {
     warnings.push(
       `The cell mapping for metric ${mapping.version} has not been verified against a sample workbook. Check the written sheets before sending this file to a developer.`,
+    );
+  }
+
+  const labels = getMetricLabels(options.metricVersion);
+  if (labels.status === 'unconfirmed') {
+    warnings.push(
+      `The dropdown wording for metric ${mapping.version} has not been checked against a real workbook. A label the metric does not recognise is accepted silently and makes its unit calculation fail, so confirm the written cells show real values rather than errors.`,
     );
   }
 

@@ -43,7 +43,9 @@ async function buildFixtureWorkbook(): Promise<Uint8Array> {
 
 async function readBack(file: Uint8Array): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(file));
+  // ExcelJS bundles its own older @types/node, where Buffer is not generic,
+  // so the two definitions disagree about a value both accept at runtime.
+  await workbook.xlsx.load(Buffer.from(file) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
   return workbook;
 }
 

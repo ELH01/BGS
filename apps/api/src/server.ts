@@ -6,7 +6,9 @@ import { describeDatabaseError } from './http.js';
 import sessionPlugin from './auth/session.js';
 import authRoutes from './routes/auth.js';
 import configRoutes from './routes/config.js';
+import developerRoutes from './routes/developers.js';
 import operatorRoutes from './routes/operators.js';
+import quoteRoutes from './routes/quotes.js';
 import stockRoutes from './routes/stock.js';
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -50,7 +52,9 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(authRoutes);
   await app.register(configRoutes);
   await app.register(operatorRoutes);
+  await app.register(developerRoutes);
   await app.register(stockRoutes);
+  await app.register(quoteRoutes);
 
   return app;
 }

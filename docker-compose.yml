@@ -1,0 +1,26 @@
+# Local development database.
+#
+# The platform targets a hosted Postgres in production, but runs entirely on
+# your own machine until you choose to deploy. Nothing here is exposed beyond
+# localhost.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bgs-postgres
+    environment:
+      POSTGRES_USER: bgs
+      POSTGRES_PASSWORD: bgs_dev
+      POSTGRES_DB: bgs_dev
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - bgs-pgdata:/var/lib/postgresql/data
+      - ./packages/db/docker-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bgs -d bgs_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  bgs-pgdata:

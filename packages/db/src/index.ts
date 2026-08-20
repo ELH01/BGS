@@ -5,3 +5,4 @@ export * from './auth-store.js';
 export * from './repositories.js';
 export * from "./quotes.js";
 export * from "./developers.js";
+export * from "./backup.js";

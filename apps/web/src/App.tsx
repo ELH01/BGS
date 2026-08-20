@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import Backup from './pages/Backup';
 import Developers from './pages/Developers';
 import Exposure from './pages/Exposure';
 import QuoteDetail from './pages/QuoteDetail';
@@ -45,6 +46,7 @@ export default function App(): ReactNode {
           <NavLink to="/stock">Stock parcels</NavLink>
           <NavLink to="/sites">Sites</NavLink>
           <NavLink to="/operators">Bank operators</NavLink>
+          <NavLink to="/backup">Backup</NavLink>
           <NavLink to="/settings">
             Configuration {unconfirmed && <span className="badge over">!</span>}
           </NavLink>
@@ -68,6 +70,7 @@ export default function App(): ReactNode {
           <Route path="/stock" element={<Stock />} />
           <Route path="/sites" element={<Sites />} />
           <Route path="/operators" element={<Operators />} />
+          <Route path="/backup" element={<Backup />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/exposure" replace />} />
         </Routes>

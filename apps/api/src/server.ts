@@ -5,6 +5,7 @@ import { loadApiConfig } from './env.js';
 import { describeDatabaseError } from './http.js';
 import sessionPlugin from './auth/session.js';
 import authRoutes from './routes/auth.js';
+import backupRoutes from './routes/backup.js';
 import configRoutes from './routes/config.js';
 import developerRoutes from './routes/developers.js';
 import operatorRoutes from './routes/operators.js';
@@ -53,6 +54,7 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   await app.register(authRoutes);
   await app.register(configRoutes);
+  await app.register(backupRoutes);
   await app.register(operatorRoutes);
   await app.register(developerRoutes);
   await app.register(stockRoutes);

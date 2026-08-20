@@ -13,7 +13,9 @@
     "lint": "eslint .",
     "db:migrate": "pnpm --filter @bgs/db migrate",
     "db:reset": "pnpm --filter @bgs/db reset",
-    "dev": "pnpm --parallel --filter @bgs/api --filter @bgs/web dev"
+    "dev": "pnpm --parallel --filter @bgs/api --filter @bgs/web dev",
+    "db:backup": "pnpm --filter @bgs/db exec tsx src/cli.ts backup",
+    "db:restore": "pnpm --filter @bgs/db exec tsx src/cli.ts restore"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

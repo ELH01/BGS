@@ -36,7 +36,13 @@ Open http://localhost:5173 and choose **Set up a new organisation**.
 pnpm test        # unit and integration suites
 pnpm typecheck   # all packages
 pnpm db:reset    # drop and rebuild the schema (development only)
+pnpm db:backup   # write a whole-database backup to a file
+pnpm db:restore  # replace the database from one (asks you to confirm by typing)
 ```
+
+The first organisation created on an instance is treated as the one running it,
+which is what gates whole-instance backups. Later organisations — third-party
+bank operators being onboarded — are ordinary tenants.
 
 `scripts/smoke-ui.mjs` drives the real UI in a browser against a running dev
 server and an empty database; see the note at the top of that file.
@@ -47,6 +53,7 @@ server and an empty database; see the note at the top of that file.
 |---|---|
 | `packages/core` | Precision primitives, trading rules, spatial multipliers, the allocation solver. No I/O. |
 | `packages/metric` | DEFRA metric cell mappings and the off-site workbook write-back. |
+| `packages/documents` | Quote Word export and VAT treatment. |
 | `packages/db` | SQL migrations, tenant-scoped client, repositories. |
 | `apps/api` | Fastify HTTP API, session auth. |
 | `apps/web` | React client. |
@@ -121,28 +128,27 @@ the policies.
 
 ## What is built, and what is not
 
-Built:
+Built, with screens for all of it:
 
 - Organisations, users, sessions, management grants
 - Bank operators with per-operator quote branding
 - Habitat bank sites, including an LNRS field held ready but unused
-- Stock parcels with list pricing and physical extent
+- Stock parcels with list pricing, physical extent and the metric inputs
 - The derived stock unit pool and exposure view
 - Developers, keeping the purchasing entity apart from the development site
-- The three-module allocation solver, over an API endpoint
-- The quote lifecycle: allocation, the hard target gate, exposure,
-  cancellation, reservation, sale with partial retirement, audited sale
-  reversal
+- The three-module allocation solver
+- The interactive allocation table: units and percentages converting both ways,
+  a live running total against the buffered target, the hard issue gate
+- The quote lifecycle: cancellation, reservation, sale with partial retirement,
+  audited sale reversal
+- The quote Word export, branded per bank operator
 - Metric cell mappings and the off-site workbook write-back
+- Backup: per-organisation export and whole-instance backup
 
-Not yet built: the bank and developer metric **importers** (the mapping layer
-they need exists; the parsers are waiting on sample workbooks — see below), the
-interactive allocation table in the browser, the quote Word export, and backup
-and restore.
-
-The web client currently covers phase 1 — operators, sites, stock and exposure.
-The solver and quote lifecycle are reachable over the API but do not yet have
-screens.
+Not yet built: the bank and developer metric **importers**. The mapping layer
+they need exists; the parsers are waiting on sample workbooks — see below.
+Branding logo upload is also outstanding, so quote documents currently show the
+operator's name and address but no logo.
 
 ## Values awaiting confirmation
 
@@ -168,6 +174,28 @@ determines whether quotes need a subtotal/VAT/total breakdown or a flat total.
 Spatial risk is built as a swappable *scheme* rather than a fixed lookup, so the
 signalled move onto LNRS boundaries can be added alongside the current one and
 selected per site without the solver changing.
+
+## Backup is two different things
+
+§4.8 was written for a single local SQLite file, where backup meant copying it.
+With third-party operators signing in, that one action is now two, and running
+them together would hand every tenant's commercial data to whoever pressed the
+button.
+
+- **An organisation export** is a tenant's own data as JSON, safe for any of its
+  users to take. It goes through the same row-level security as every other
+  query, so it can only contain what that organisation may see — there is a test
+  asserting one operator's export cannot contain another's parcel references or
+  pricing. Figures are written as text, so a 4dp unit quantity survives exactly.
+- **A whole-instance backup** is `pg_dump` output for disaster recovery,
+  restricted to an owner or admin of the organisation running the instance.
+
+**Restore is not exposed over HTTP.** An endpoint that replaces the entire
+database is not something that should be one mis-click away in a browser
+session, and "a clear confirmation step" is served far better by a deliberate
+command on the machine holding the data — `pnpm db:restore <file>`, which makes
+you type a confirmation phrase. The backup screen shows the command rather than
+hiding the capability.
 
 ## The metric cell mapping
 

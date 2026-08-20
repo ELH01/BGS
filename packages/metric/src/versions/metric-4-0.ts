@@ -1,0 +1,418 @@
+import type { MetricVersionMapping, SheetMapping } from '../fields.js';
+
+/**
+ * Cell mapping for DEFRA statutory biodiversity metric 4.0.
+ *
+ * Transcribed from a working QGIS export tool that writes into this workbook
+ * in the field, so the addresses here are ones that have been used against real
+ * files rather than inferred from a specification.
+ *
+ * Two things to know before editing.
+ *
+ * **Sheet names are reproduced exactly, typos included.** The workbook itself
+ * spells the off-site habitat enhancement sheet "Enhancment", and drops the
+ * apostrophe from "WaterC'" on the off-site watercourse enhancement sheet
+ * alone. Tidying either would simply mean the sheet is never found.
+ *
+ * **The discrepancies below are recorded, not silently resolved.** Several
+ * mappings look inconsistent between the on-site and off-site versions of the
+ * same sheet. They may be genuine layout differences — the off-site sheets
+ * carry extra spatial risk columns, which shifts everything to their right —
+ * or they may be mistakes in the source tool. Guessing which would produce a
+ * workbook that looks right and is wrong, so each is listed for confirmation
+ * against a real file and the mapping is left as transcribed.
+ */
+
+const habitatSheets: readonly SheetMapping[] = [
+  {
+    sheet: 'A-1 On-Site Habitat Baseline',
+    module: 'area',
+    context: 'on-site',
+    kind: 'baseline',
+    firstRow: 11,
+    lastRow: 258,
+    columns: {
+      habitatReference: ['AB'],
+      broadHabitat: ['E'],
+      habitatType: ['F'],
+      irreplaceable: ['G'],
+      areaHectares: ['H'],
+      condition: ['K'],
+      strategicSignificance: ['M'],
+      areaRetained: ['S'],
+      areaEnhanced: ['T'],
+      userComments: ['Z'],
+    },
+    notes: ['On-site sheets carry no spatial risk column; the multiplier only applies off-site.'],
+  },
+  {
+    sheet: 'D-1 Off-Site Habitat Baseline',
+    module: 'area',
+    context: 'off-site',
+    kind: 'baseline',
+    firstRow: 11,
+    lastRow: 258,
+    columns: {
+      habitatReference: ['AE'],
+      broadHabitat: ['E'],
+      habitatType: ['F'],
+      irreplaceable: ['G'],
+      areaHectares: ['H'],
+      condition: ['K'],
+      strategicSignificance: ['M'],
+      spatialRiskCategory: ['R'],
+      areaRetained: ['V'],
+      areaEnhanced: ['W'],
+      userComments: ['AC'],
+    },
+  },
+  {
+    sheet: 'A-2 On-Site Habitat Creation',
+    module: 'area',
+    context: 'on-site',
+    kind: 'creation',
+    firstRow: 11,
+    lastRow: 256,
+    columns: {
+      proposedParcelRef: ['AB'],
+      broadHabitat: ['D'],
+      habitatType: ['E'],
+      areaHectares: ['G'],
+      condition: ['J'],
+      strategicSignificance: ['L'],
+      createdInAdvanceYears: ['P'],
+      delayYears: ['Q'],
+      userComments: ['Z'],
+    },
+  },
+  {
+    // The sheet an off-site allocation from a habitat bank is written into.
+    sheet: 'D-2 Off-Site Habitat Creation',
+    module: 'area',
+    context: 'off-site',
+    kind: 'creation',
+    firstRow: 11,
+    lastRow: 256,
+    columns: {
+      proposedParcelRef: ['AE'],
+      broadHabitat: ['D'],
+      habitatType: ['E'],
+      areaHectares: ['G'],
+      condition: ['J'],
+      strategicSignificance: ['L'],
+      createdInAdvanceYears: ['P'],
+      delayYears: ['Q'],
+      spatialRiskCategory: ['Y'],
+      userComments: ['AC'],
+    },
+  },
+  {
+    sheet: 'A-3 On-Site Habitat Enhancement',
+    module: 'area',
+    context: 'on-site',
+    kind: 'enhancement',
+    firstRow: 12,
+    lastRow: 257,
+    columns: {
+      habitatReference: ['AE'],
+      proposedParcelRef: ['AQ'],
+      broadHabitat: ['Q'],
+      habitatType: ['R'],
+      condition: ['Y'],
+      strategicSignificance: ['AA'],
+      delayYears: ['AF'],
+      userComments: ['AO'],
+    },
+    notes: ['Column AE is mapped to the habitat reference here but to a different field on D-3. See discrepancies.'],
+  },
+  {
+    sheet: 'D-3 Off-Site Habitat Enhancment',
+    module: 'area',
+    context: 'off-site',
+    kind: 'enhancement',
+    firstRow: 12,
+    lastRow: 258,
+    columns: {
+      proposedParcelRef: ['AT'],
+      broadHabitat: ['Q'],
+      habitatType: ['R'],
+      condition: ['Y'],
+      strategicSignificance: ['AA'],
+      createdInAdvanceYears: ['AE'],
+      delayYears: ['AF'],
+      userComments: ['AR'],
+    },
+    notes: [
+      'Sheet name is spelled "Enhancment" in the workbook. Not a typo in this file.',
+      'Column AE is mapped to the creation-in-advance figure here but to the habitat reference on A-3.',
+    ],
+  },
+];
+
+const hedgerowSheets: readonly SheetMapping[] = [
+  {
+    sheet: 'B-1 On-Site Hedge Baseline',
+    module: 'hedgerow',
+    context: 'on-site',
+    kind: 'baseline',
+    firstRow: 10,
+    lastRow: 257,
+    columns: {
+      // Repeated in two columns; both copies must be written.
+      habitatReference: ['C', 'X'],
+      habitatType: ['D'],
+      lengthKm: ['E'],
+      condition: ['H'],
+      strategicSignificance: ['J'],
+      lengthRetained: ['P'],
+      lengthEnhanced: ['Q'],
+      userComments: ['V'],
+    },
+  },
+  {
+    sheet: 'E-1 Off-Site Hedge Baseline',
+    module: 'hedgerow',
+    context: 'off-site',
+    kind: 'baseline',
+    firstRow: 10,
+    lastRow: 257,
+    columns: {
+      habitatReference: ['C', 'AA'],
+      habitatType: ['D'],
+      lengthKm: ['E'],
+      condition: ['H'],
+      strategicSignificance: ['J'],
+      spatialRiskCategory: ['O'],
+      lengthRetained: ['S'],
+      lengthEnhanced: ['T'],
+      userComments: ['Y'],
+    },
+  },
+  {
+    sheet: 'B-2 On-Site Hedge Creation',
+    module: 'hedgerow',
+    context: 'on-site',
+    kind: 'creation',
+    firstRow: 12,
+    lastRow: 259,
+    columns: {
+      habitatReference: ['C', 'Z'],
+      habitatType: ['D'],
+      lengthKm: ['E'],
+      condition: ['H'],
+      strategicSignificance: ['J'],
+      createdInAdvanceYears: ['N'],
+      delayYears: ['O'],
+      userComments: ['X'],
+    },
+  },
+  {
+    // The sheet an off-site hedgerow allocation is written into.
+    sheet: 'E-2 Off-Site Hedge Creation',
+    module: 'hedgerow',
+    context: 'off-site',
+    kind: 'creation',
+    firstRow: 12,
+    lastRow: 259,
+    columns: {
+      habitatReference: ['C', 'AC'],
+      habitatType: ['D'],
+      lengthKm: ['E'],
+      condition: ['H'],
+      strategicSignificance: ['J'],
+      spatialRiskCategory: ['M'],
+      createdInAdvanceYears: ['P'],
+      delayYears: ['Q'],
+      userComments: ['AA'],
+    },
+  },
+  {
+    sheet: 'B-3 On-Site Hedge Enhancement',
+    module: 'hedgerow',
+    context: 'on-site',
+    kind: 'enhancement',
+    firstRow: 12,
+    lastRow: 257,
+    columns: {
+      habitatReference: ['AK'],
+      habitatType: ['M'],
+      condition: ['S'],
+      strategicSignificance: ['U'],
+      createdInAdvanceYears: ['Y'],
+      delayYears: ['Z'],
+      userComments: ['AI'],
+    },
+    notes: ['Enhancement carries no length column; the length comes from the matching baseline row.'],
+  },
+  {
+    sheet: 'E-3 Off-Site Hedge Enhancement',
+    module: 'hedgerow',
+    context: 'off-site',
+    kind: 'enhancement',
+    firstRow: 12,
+    lastRow: 257,
+    columns: {
+      habitatReference: ['AN'],
+      habitatType: ['M'],
+      condition: ['S'],
+      strategicSignificance: ['U'],
+      createdInAdvanceYears: ['Y'],
+      delayYears: ['Z'],
+      userComments: ['AL'],
+    },
+    notes: ['No spatial risk column mapped, unlike every other off-site sheet. See discrepancies.'],
+  },
+];
+
+const watercourseSheets: readonly SheetMapping[] = [
+  {
+    sheet: "C-1 On-Site WaterC' Baseline",
+    module: 'watercourse',
+    context: 'on-site',
+    kind: 'baseline',
+    firstRow: 10,
+    lastRow: 257,
+    columns: {
+      habitatReference: ['AD'],
+      watercourseType: ['D'],
+      lengthKm: ['E'],
+      condition: ['H'],
+      strategicSignificance: ['J'],
+      encroachmentWatercourse: ['M'],
+      encroachmentRiparian: ['O'],
+      lengthRetained: ['U'],
+      lengthEnhanced: ['V'],
+      userComments: ['AB'],
+    },
+  },
+  {
+    sheet: "F-1 Off-Site WaterC' Baseline",
+    module: 'watercourse',
+    context: 'off-site',
+    kind: 'baseline',
+    firstRow: 10,
+    lastRow: 257,
+    columns: {
+      habitatReference: ['AG'],
+      watercourseType: ['D'],
+      lengthKm: ['E'],
+      condition: ['H'],
+      strategicSignificance: ['J'],
+      encroachmentWatercourse: ['M'],
+      encroachmentRiparian: ['O'],
+      spatialRiskCategory: ['S'],
+      lengthRetained: ['X'],
+      lengthEnhanced: ['Y'],
+      userComments: ['AE'],
+    },
+  },
+  {
+    sheet: "C-2 On-Site WaterC' Creation",
+    module: 'watercourse',
+    context: 'on-site',
+    kind: 'creation',
+    firstRow: 12,
+    lastRow: 259,
+    columns: {
+      habitatReference: ['AC'],
+      watercourseType: ['C'],
+      lengthKm: ['D'],
+      condition: ['G'],
+      strategicSignificance: ['I'],
+      createdInAdvanceYears: ['M'],
+      delayYears: ['N'],
+      encroachmentWatercourse: ['V'],
+      encroachmentRiparian: ['X'],
+      userComments: ['AA'],
+    },
+    notes: ['Type and length sit one column left of where the baseline sheet puts them.'],
+  },
+  {
+    // The sheet an off-site watercourse allocation is written into.
+    sheet: "F-2 Off-Site WaterC' Creation",
+    module: 'watercourse',
+    context: 'off-site',
+    kind: 'creation',
+    firstRow: 12,
+    lastRow: 259,
+    columns: {
+      habitatReference: ['AF'],
+      watercourseType: ['C'],
+      lengthKm: ['D'],
+      condition: ['G'],
+      strategicSignificance: ['I'],
+      createdInAdvanceYears: ['M'],
+      delayYears: ['N'],
+      encroachmentWatercourse: ['V'],
+      encroachmentRiparian: ['X'],
+      spatialRiskCategory: ['Z'],
+      userComments: ['AD'],
+    },
+  },
+  {
+    sheet: "C-3 On-Site WaterC' Enhancement",
+    module: 'watercourse',
+    context: 'on-site',
+    kind: 'enhancement',
+    firstRow: 12,
+    lastRow: 257,
+    columns: {
+      habitatReference: ['AP'],
+      watercourseType: ['N'],
+      condition: ['T'],
+      strategicSignificance: ['V'],
+      createdInAdvanceYears: ['Z'],
+      delayYears: ['AA'],
+      encroachmentWatercourse: ['AI'],
+      encroachmentRiparian: ['AK'],
+      userComments: ['AN'],
+    },
+  },
+  {
+    sheet: 'F-3 Off-Site WaterC Enhancement',
+    module: 'watercourse',
+    context: 'off-site',
+    kind: 'enhancement',
+    firstRow: 12,
+    lastRow: 257,
+    columns: {
+      habitatReference: ['AS'],
+      watercourseType: ['N'],
+      condition: ['T'],
+      strategicSignificance: ['V'],
+      createdInAdvanceYears: ['Z'],
+      delayYears: ['AA'],
+      encroachmentWatercourse: ['AI'],
+      encroachmentRiparian: ['AK'],
+      userComments: ['AQ'],
+    },
+    notes: [
+      'Sheet name drops the apostrophe after "WaterC" on this sheet alone. Not a typo in this file.',
+      'No spatial risk column mapped, unlike every other off-site sheet. See discrepancies.',
+    ],
+  },
+];
+
+export const METRIC_4_0: MetricVersionMapping = Object.freeze({
+  version: '4.0',
+  label: 'DEFRA statutory biodiversity metric 4.0',
+  source:
+    'Transcribed from a working QGIS export tool used against real workbooks. Not yet verified cell-by-cell against a sample file held by this project.',
+  status: 'unconfirmed',
+  sheets: Object.freeze([...habitatSheets, ...hedgerowSheets, ...watercourseSheets]),
+  header: Object.freeze({
+    sheet: 'Start',
+    cells: Object.freeze({
+      lpa: 'F11',
+      siteName: 'F12',
+      clientName: 'F13',
+    }),
+  }),
+  discrepancies: Object.freeze([
+    'A-3 maps column AE to the habitat reference; D-3 maps the same column to habitat created in advance. The two enhancement sheets should differ only by the off-site spatial risk columns, so one of these is likely wrong.',
+    'A-3 has no habitat-created-in-advance column mapped, and D-3 has no habitat reference column mapped — the mirror image of the point above.',
+    'E-3 and F-3 have no spatial risk column mapped, although every other off-site sheet does.',
+    'Watercourse creation sheets put the type in C and the length in D, while the watercourse baseline sheets put them in D and E. Plausible as a real layout difference, but worth confirming.',
+    'Row ranges differ between otherwise-parallel sheets: A-3 ends at 257 while D-3 ends at 258. Confirm against a real workbook before relying on the last row.',
+  ]),
+});

@@ -133,9 +133,19 @@ export interface StockParcel {
   exportReadiness?: ExportReadiness;
 }
 
+export interface BankRollUp {
+  bankOperatorId: string;
+  bankOperatorName: string;
+  parcels: number;
+  overExposed: number;
+}
+
 export interface PoolEntry {
   stockParcelId: string;
   siteId: string;
+  siteName: string;
+  bankOperatorId: string;
+  bankOperatorName: string;
   module: MetricModule;
   broadHabitat: string;
   habitatType: string;

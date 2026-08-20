@@ -494,23 +494,30 @@ export async function updateStockParcelMetricInputs(
 
 export async function listStockParcels(
   db: Queryable,
-  options: { siteId?: string; module?: MetricModule } = {},
+  options: { siteId?: string; module?: MetricModule; bankOperatorId?: string } = {},
 ): Promise<StockParcel[]> {
   const conditions: string[] = [];
   const params: (string | null)[] = [];
 
   if (options.siteId) {
     params.push(options.siteId);
-    conditions.push(`site_id = $${params.length}`);
+    conditions.push(`p.site_id = $${params.length}`);
   }
   if (options.module) {
     params.push(options.module);
-    conditions.push(`module = $${params.length}`);
+    conditions.push(`p.module = $${params.length}`);
+  }
+  if (options.bankOperatorId) {
+    params.push(options.bankOperatorId);
+    conditions.push(`s.bank_operator_id = $${params.length}`);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const { rows } = await db.query<ParcelRow>(
-    `SELECT * FROM stock_parcel ${where} ORDER BY module, parcel_reference`,
+    `SELECT p.* FROM stock_parcel p
+       JOIN habitat_bank_site s ON s.id = p.site_id
+       ${where}
+      ORDER BY p.module, p.parcel_reference`,
     params,
   );
   return rows.map(toParcel);
@@ -542,6 +549,9 @@ export interface StockUnitPoolEntry {
   stockParcelId: string;
   organisationId: string;
   siteId: string;
+  siteName: string;
+  bankOperatorId: string;
+  bankOperatorName: string;
   module: MetricModule;
   broadHabitat: string;
   habitatType: string;
@@ -565,6 +575,9 @@ interface PoolRow {
   stock_parcel_id: string;
   organisation_id: string;
   site_id: string;
+  site_name: string;
+  bank_operator_id: string;
+  bank_operator_name: string;
   module: MetricModule;
   broad_habitat: string;
   habitat_type: string;
@@ -584,23 +597,34 @@ interface PoolRow {
 
 export async function getStockUnitPool(
   db: Queryable,
-  options: { siteId?: string; module?: MetricModule } = {},
+  options: { siteId?: string; module?: MetricModule; bankOperatorId?: string } = {},
 ): Promise<StockUnitPoolEntry[]> {
   const conditions: string[] = [];
   const params: string[] = [];
 
   if (options.siteId) {
     params.push(options.siteId);
-    conditions.push(`site_id = $${params.length}`);
+    conditions.push(`p.site_id = $${params.length}`);
   }
   if (options.module) {
     params.push(options.module);
-    conditions.push(`module = $${params.length}`);
+    conditions.push(`p.module = $${params.length}`);
+  }
+  // Filtering by bank rather than by site: an operator running several banks
+  // thinks in banks first, and a bank may hold several sites.
+  if (options.bankOperatorId) {
+    params.push(options.bankOperatorId);
+    conditions.push(`s.bank_operator_id = $${params.length}`);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const { rows } = await db.query<PoolRow>(
-    `SELECT * FROM stock_unit_pool ${where} ORDER BY module, parcel_reference`,
+    `SELECT p.*, s.name AS site_name, s.bank_operator_id, o.name AS bank_operator_name
+       FROM stock_unit_pool p
+       JOIN habitat_bank_site s ON s.id = p.site_id
+       JOIN bank_operator o ON o.id = s.bank_operator_id
+       ${where}
+      ORDER BY o.name, s.name, p.module, p.parcel_reference`,
     params,
   );
 
@@ -610,6 +634,9 @@ export async function getStockUnitPool(
       stockParcelId: row.stock_parcel_id,
       organisationId: row.organisation_id,
       siteId: row.site_id,
+      siteName: row.site_name,
+      bankOperatorId: row.bank_operator_id,
+      bankOperatorName: row.bank_operator_name,
       module,
       broadHabitat: row.broad_habitat,
       habitatType: row.habitat_type,

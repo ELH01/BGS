@@ -99,7 +99,7 @@ const listPriceSchema = z.object({
 });
 
 export default async function stockRoutes(app: FastifyInstance): Promise<void> {
-  app.get<{ Querystring: { siteId?: string; module?: string } }>(
+  app.get<{ Querystring: { siteId?: string; module?: string; bankOperatorId?: string } }>(
     '/api/stock-parcels',
     { onRequest: [app.requireAuth] },
     async (request, reply) => {
@@ -112,6 +112,7 @@ export default async function stockRoutes(app: FastifyInstance): Promise<void> {
       const parcels = await withTenant(auth.organisationId, (tx) =>
         listStockParcels(tx, {
           ...(request.query.siteId ? { siteId: request.query.siteId } : {}),
+          ...(request.query.bankOperatorId ? { bankOperatorId: request.query.bankOperatorId } : {}),
           ...(module ? { module: module as (typeof METRIC_MODULES)[number] } : {}),
         }),
       );
@@ -221,7 +222,7 @@ export default async function stockRoutes(app: FastifyInstance): Promise<void> {
   );
 
   /** §3.4 / §4.4: the unit pool, and the exposure figures derived from it. */
-  app.get<{ Querystring: { siteId?: string; module?: string } }>(
+  app.get<{ Querystring: { siteId?: string; module?: string; bankOperatorId?: string } }>(
     '/api/stock-pool',
     { onRequest: [app.requireAuth] },
     async (request, reply) => {
@@ -234,10 +235,28 @@ export default async function stockRoutes(app: FastifyInstance): Promise<void> {
       const pool = await withTenant(auth.organisationId, (tx) =>
         getStockUnitPool(tx, {
           ...(request.query.siteId ? { siteId: request.query.siteId } : {}),
+          ...(request.query.bankOperatorId ? { bankOperatorId: request.query.bankOperatorId } : {}),
           ...(module ? { module: module as (typeof METRIC_MODULES)[number] } : {}),
         }),
       );
-      return { pool };
+
+      // Rolled up per bank as well as returned per parcel: someone running
+      // several banks wants to know where each one stands before they care
+      // about individual parcels.
+      const byBank = new Map<string, { bankOperatorId: string; bankOperatorName: string; parcels: number; overExposed: number }>();
+      for (const entry of pool) {
+        const existing = byBank.get(entry.bankOperatorId) ?? {
+          bankOperatorId: entry.bankOperatorId,
+          bankOperatorName: entry.bankOperatorName,
+          parcels: 0,
+          overExposed: 0,
+        };
+        existing.parcels += 1;
+        if (entry.isOverExposed) existing.overExposed += 1;
+        byBank.set(entry.bankOperatorId, existing);
+      }
+
+      return { pool, banks: [...byBank.values()].sort((a, b) => a.bankOperatorName.localeCompare(b.bankOperatorName)) };
     },
   );
 }

@@ -233,6 +233,22 @@ documents. This section is the application's own identity, which is Cosdon's.
 A quote drawn from a third party's stock carries *their* branding, taken from
 the bank operator record — see §3.1.
 
+## Running several habitat banks
+
+A bank operator holds sites, and sites hold parcels, so more than one bank sits
+naturally in the model. The interface follows that shape rather than the
+storage shape: exposure opens on a roll-up across every bank, showing where each
+one stands and which have gone over-quoted, before any individual parcel. From
+there you can narrow to one bank, then to one of its sites.
+
+Stock and exposure both filter by bank as well as by site, and every parcel row
+names its bank and site once you hold more than one — the reference alone stops
+being enough to place it.
+
+The solver deliberately searches across every bank at once by default, since a
+developer's shortfall does not care which of your banks fills it. Scoping to a
+single site remains an option (§4.3.1) where it should.
+
 ## Backup is two different things
 
 §4.8 was written for a single local SQLite file, where backup meant copying it.

@@ -5,6 +5,8 @@ import {
   MODULE_LABEL,
   api,
   formatMoney,
+  type BankOperator,
+  type BankRollUp,
   type MetricModule,
   type PoolEntry,
   type Site,
@@ -27,24 +29,33 @@ export default function Exposure(): ReactNode {
   const [params, setParams] = useSearchParams();
   const siteId = params.get('siteId') ?? '';
 
+  const bankOperatorId = params.get('bankOperatorId') ?? '';
   const [sites, setSites] = useState<Site[]>([]);
+  const [operators, setOperators] = useState<BankOperator[]>([]);
   const [pool, setPool] = useState<PoolEntry[]>([]);
+  const [banks, setBanks] = useState<BankRollUp[]>([]);
   const [error, setError] = useState<unknown>(null);
 
   const load = useCallback(async () => {
     try {
-      const [siteResponse, poolResponse] = await Promise.all([
+      const query = new URLSearchParams();
+      if (siteId) query.set('siteId', siteId);
+      if (bankOperatorId) query.set('bankOperatorId', bankOperatorId);
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+
+      const [siteResponse, operatorResponse, poolResponse] = await Promise.all([
         api.get<{ sites: Site[] }>('/api/sites'),
-        api.get<{ pool: PoolEntry[] }>(
-          siteId ? `/api/stock-pool?siteId=${encodeURIComponent(siteId)}` : '/api/stock-pool',
-        ),
+        api.get<{ bankOperators: BankOperator[] }>('/api/bank-operators'),
+        api.get<{ pool: PoolEntry[]; banks: BankRollUp[] }>(`/api/stock-pool${suffix}`),
       ]);
       setSites(siteResponse.sites);
+      setOperators(operatorResponse.bankOperators);
       setPool(poolResponse.pool);
+      setBanks(poolResponse.banks);
     } catch (caught) {
       setError(caught);
     }
-  }, [siteId]);
+  }, [siteId, bankOperatorId]);
 
   useEffect(() => {
     void load();
@@ -71,24 +82,87 @@ export default function Exposure(): ReactNode {
         />
       )}
 
-      {sites.length > 0 && (
+      {banks.length > 1 && !bankOperatorId && !siteId && (
+        <div className="card">
+          <h2>Across your banks</h2>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Bank</th>
+                  <th className="numeric">Parcels</th>
+                  <th>Standing</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {banks.map((bank) => (
+                  <tr key={bank.bankOperatorId}>
+                    <td>
+                      <strong>{bank.bankOperatorName}</strong>
+                    </td>
+                    <td className="numeric">{bank.parcels}</td>
+                    <td>
+                      {bank.overExposed > 0 ? (
+                        <span className="badge over">{bank.overExposed} over-quoted</span>
+                      ) : (
+                        <span className="badge">within stock</span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        className="link"
+                        onClick={() => setParams({ bankOperatorId: bank.bankOperatorId })}
+                      >
+                        View only this bank
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {(sites.length > 0 || operators.length > 0) && (
         <div className="card" style={{ paddingTop: '0.9rem', paddingBottom: '0.9rem' }}>
-          <Field label="Showing exposure for">
-            <select
-              value={siteId}
-              onChange={(event) => {
-                const next = event.target.value;
-                setParams(next ? { siteId: next } : {});
-              }}
-            >
-              <option value="">All sites</option>
-              {sites.map((site) => (
-                <option key={site.id} value={site.id}>
-                  {site.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <div className="field-row">
+            <Field label="Bank">
+              <select
+                value={bankOperatorId}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setParams(next ? { bankOperatorId: next } : {});
+                }}
+              >
+                <option value="">All banks</option>
+                {operators.map((operator) => (
+                  <option key={operator.id} value={operator.id}>
+                    {operator.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Site">
+              <select
+                value={siteId}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setParams(next ? { siteId: next } : {});
+                }}
+              >
+                <option value="">All sites</option>
+                {sites
+                  .filter((site) => !bankOperatorId || site.bankOperatorId === bankOperatorId)
+                  .map((site) => (
+                    <option key={site.id} value={site.id}>
+                      {site.name}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          </div>
         </div>
       )}
 
@@ -134,6 +208,11 @@ export default function Exposure(): ReactNode {
                       <tr key={entry.stockParcelId}>
                         <td>
                           <strong>{entry.parcelReference}</strong>
+                          {banks.length > 1 && (
+                            <div className="hint">
+                              {entry.bankOperatorName} · {entry.siteName}
+                            </div>
+                          )}
                         </td>
                         <td>
                           {entry.habitatType}

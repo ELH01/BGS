@@ -86,14 +86,28 @@ export interface ModuleSolution {
   unmetUnits: UnitQuantity;
   /** Parcels rejected by the trading rules, with the reason. */
   rejected: Array<{ stockParcelId: string; parcelReference: string; reason: string }>;
+  /**
+   * False when the habitat lost was not described, so nothing was filtered.
+   * The caller must surface this: an unfiltered list looks exactly like a
+   * filtered one that happened to reject nothing.
+   */
+  tradingRulesApplied: boolean;
 }
 
 export interface SolveInput {
   module: MetricModule;
   /** The off-site shortfall for this module, in effective units. */
   requiredUnits: UnitQuantity;
-  /** What was lost, which decides what may replace it. */
-  shortfall: ShortfallRequirement;
+  /**
+   * What was lost, which decides what may replace it.
+   *
+   * Optional, because the manual entry path (§4.4) may not know it — an early
+   * enquiry can be no more than a number of units. When it is absent no
+   * trading-rule filtering happens, every parcel in the module is offered, and
+   * `tradingRulesApplied` on the result says so. That is deliberately louder
+   * than filtering on a guess would be.
+   */
+  shortfall?: ShortfallRequirement | undefined;
   options: readonly SolverStockOption[];
   lookup?: SpatialRiskLookup;
   tradingRules?: TradingRuleConfig;
@@ -143,7 +157,7 @@ export function solveModule(input: SolveInput): ModuleSolution {
   if (requiredUnits.module !== module) {
     throw new TypeError(`Required units are a ${requiredUnits.module} quantity but the module is ${module}.`);
   }
-  if (shortfall.module !== module) {
+  if (shortfall && shortfall.module !== module) {
     throw new TypeError(`Shortfall is for ${shortfall.module} but the module is ${module}.`);
   }
 
@@ -160,7 +174,17 @@ export function solveModule(input: SolveInput): ModuleSolution {
   for (const option of options) {
     if (option.module !== module) continue;
 
-    const verdict = checkEligibility(option, shortfall, tradingRules);
+    // With no description of the habitat lost there is nothing to test
+    // against, so every parcel in the module is offered and the justification
+    // records why no rule was applied rather than implying one passed.
+    const verdict = shortfall
+      ? checkEligibility(option, shortfall, tradingRules)
+      : {
+          eligible: true,
+          justification:
+            'The habitat lost was not described, so no trading rule was applied. Confirm this stock is eligible before issuing the quote.',
+        };
+
     if (!verdict.eligible) {
       rejected.push({
         stockParcelId: option.stockParcelId,
@@ -227,6 +251,7 @@ export function solveModule(input: SolveInput): ModuleSolution {
     shortOfTarget,
     unmetUnits: shortOfTarget ? target.minus(delivered) : UnitQuantity.zero(module),
     rejected,
+    tradingRulesApplied: shortfall !== undefined,
   };
 }
 
@@ -248,6 +273,57 @@ export function solveAllModules(
 }
 
 /**
+ * The four conversions the allocation table runs on, expressed in terms of a
+ * bare delivery factor rather than a band and a scheme.
+ *
+ * They take the factor directly so the browser can use them without holding a
+ * copy of the multiplier scheme: the API sends each option's factor alongside
+ * it, and the same functions then run on both sides. That matters more than it
+ * might seem — the table converts between units and percentages on every
+ * keystroke, and a second implementation in the client would be a second set of
+ * rounding decisions applied to the numbers this system exists to keep exact.
+ */
+
+/** Effective units delivered by drawing `raw` from a parcel with this factor. */
+export function effectiveFromRaw(raw: UnitQuantity, factor: string | Decimal): UnitQuantity {
+  // Rounded down: a row must never claim more delivery than its multiplier yields.
+  return raw.times(factor, 'down');
+}
+
+/** Raw units needed from a parcel with this factor to deliver `effective`. */
+export function rawFromEffective(effective: UnitQuantity, factor: string | Decimal): UnitQuantity {
+  // Rounded up, for the same reason in the opposite direction.
+  return effective.dividedBy(factor, 'up');
+}
+
+/** Raw units this parcel must give up to supply `percent` of the target. */
+export function percentToRaw(
+  target: UnitQuantity,
+  percent: string | number,
+  factor: string | Decimal,
+): UnitQuantity {
+  const share = new Decimal(percent).dividedBy(100);
+  // Rounded up at both steps: a row asked to supply 60% of the target must not
+  // come back supplying 59.99%.
+  return rawFromEffective(target.times(share, 'up'), factor);
+}
+
+/** The share of the target that `raw` from this parcel actually supplies. */
+export function rawToPercent(
+  target: UnitQuantity,
+  raw: UnitQuantity,
+  factor: string | Decimal,
+): string {
+  if (target.isZero()) return '0.00';
+  return effectiveFromRaw(raw, factor)
+    .toDecimal()
+    .dividedBy(target.toDecimal())
+    .times(100)
+    .toDecimalPlaces(2)
+    .toFixed(2);
+}
+
+/**
  * Convert a percentage of a module's target into raw units from a parcel, and
  * back again — the bidirectional conversion the allocation table needs (§4.4).
  *
@@ -260,11 +336,7 @@ export function percentageToRawQuantity(
   band: LpaNcaBand,
   lookup: SpatialRiskLookup = new SpatialRiskLookup(),
 ): UnitQuantity {
-  const share = new Decimal(percent).dividedBy(100);
-  // Rounded up at both steps: a row asked to supply 60% of the target must not
-  // come back supplying 59.99%.
-  const effectiveWanted = target.times(share, 'up');
-  return lookup.rawUnitsRequired(effectiveWanted, band);
+  return percentToRaw(target, percent, lookup.deliveryFactor(band));
 }
 
 export function rawQuantityToPercentage(
@@ -273,9 +345,7 @@ export function rawQuantityToPercentage(
   band: LpaNcaBand,
   lookup: SpatialRiskLookup = new SpatialRiskLookup(),
 ): string {
-  if (target.isZero()) return '0.00';
-  const effective = lookup.effectiveUnits(rawQuantity, band);
-  return effective.toDecimal().dividedBy(target.toDecimal()).times(100).toDecimalPlaces(2).toFixed(2);
+  return rawToPercent(target, rawQuantity, lookup.deliveryFactor(band));
 }
 
 /**

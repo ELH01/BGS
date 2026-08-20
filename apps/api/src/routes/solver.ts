@@ -16,12 +16,21 @@ const solveSchema = z.object({
   module: z.enum(METRIC_MODULES),
   /** The off-site shortfall for this module, in effective units. */
   requiredUnits: z.string().trim().regex(/^\d+(\.\d+)?$/, 'Enter a plain decimal number.'),
-  /** What was lost, which decides what may lawfully replace it. */
-  shortfall: z.object({
-    broadHabitat: z.string().trim().min(1).max(200),
-    habitatType: z.string().trim().min(1).max(200),
-    distinctiveness: z.enum(DISTINCTIVENESS_BANDS),
-  }),
+  /**
+   * What was lost, which decides what may lawfully replace it.
+   *
+   * Optional: an early enquiry may be no more than a number of units. Omitted,
+   * every parcel in the module is returned and `tradingRulesApplied` is false,
+   * so the caller can say so rather than presenting an unfiltered list as a
+   * filtered one.
+   */
+  shortfall: z
+    .object({
+      broadHabitat: z.string().trim().min(1).max(200),
+      habitatType: z.string().trim().min(1).max(200),
+      distinctiveness: z.enum(DISTINCTIVENESS_BANDS),
+    })
+    .nullish(),
   /** Whose development this is, for the spatial risk lookup. */
   developerId: z.string().uuid(),
   /** Optionally scope to one site rather than searching every bank (§4.3.1). */
@@ -82,7 +91,7 @@ export default async function solverRoutes(app: FastifyInstance): Promise<void> 
       return solveModule({
         module: body.module,
         requiredUnits: UnitQuantity.parse(body.module, body.requiredUnits),
-        shortfall: { module: body.module, ...body.shortfall },
+        ...(body.shortfall ? { shortfall: { module: body.module, ...body.shortfall } } : {}),
         options,
         lookup,
         bufferPercent: config.netGainBufferPercent,
@@ -128,6 +137,7 @@ export default async function solverRoutes(app: FastifyInstance): Promise<void> 
       // Shown so the user can see what was considered and rejected, rather
       // than wondering why a parcel they expected is missing.
       rejected: outcome.rejected,
+      tradingRulesApplied: outcome.tradingRulesApplied,
       spatialScheme: { id: lookup.scheme.id, status: lookup.scheme.status },
     };
   });

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
+  DISTINCTIVENESS_BANDS,
   METRIC_MODULES,
   Money,
   SpatialRiskLookup,
@@ -54,6 +55,16 @@ const createSchema = z.object({
         module: z.enum(METRIC_MODULES),
         source: z.enum(['metric', 'manual']),
         requiredUnits: decimalString,
+        // The habitat lost. Either described fully or not at all: a partial
+        // description would filter on incomplete information while looking
+        // authoritative.
+        shortfall: z
+          .object({
+            broadHabitat: z.string().trim().min(1).max(200),
+            habitatType: z.string().trim().min(1).max(200),
+            distinctiveness: z.enum(DISTINCTIVENESS_BANDS),
+          })
+          .nullish(),
       }),
     )
     .min(1),
@@ -138,6 +149,9 @@ export default async function quoteRoutes(app: FastifyInstance): Promise<void> {
           gainPercent: '100',
           bufferPercent: config.netGainBufferPercent,
         }),
+        shortfallBroadHabitat: target.shortfall?.broadHabitat ?? null,
+        shortfallHabitatType: target.shortfall?.habitatType ?? null,
+        shortfallDistinctiveness: target.shortfall?.distinctiveness ?? null,
       };
     });
 

@@ -3,9 +3,13 @@ import { Money } from './money.js';
 import { UnitQuantity } from './quantity.js';
 import { SpatialRiskLookup } from './spatial-multiplier.js';
 import {
+  effectiveFromRaw,
   meetsTarget,
+  percentToRaw,
   percentageToRawQuantity,
+  rawFromEffective,
   rawQuantityToPercentage,
+  rawToPercent,
   solveAllModules,
   solveModule,
   type SolverStockOption,
@@ -407,5 +411,92 @@ describe('the hard target gate (§4.4)', () => {
 
   it('passes when exactly on the target', () => {
     expect(meetsTarget(target, [{ effectiveUnits: target }]).meets).toBe(true);
+  });
+});
+
+describe('factor-based conversions shared with the browser', () => {
+  const target = UnitQuantity.of('area', '10.0');
+
+  it('give the same answers as the band-based versions', () => {
+    // The band-based functions delegate to these, so the allocation table in
+    // the browser and the API agree by construction rather than by discipline.
+    for (const [band, factor] of [
+      ['same-lpa', '1'],
+      ['neighbouring-lpa-same-nca', '0.75'],
+      ['outside', '0.5'],
+    ] as const) {
+      for (const percent of [10, 33, 60, 100]) {
+        expect(percentToRaw(target, percent, factor).toString()).toBe(
+          percentageToRawQuantity(target, percent, band, lookup).toString(),
+        );
+      }
+      const raw = UnitQuantity.of('area', '4.0');
+      expect(rawToPercent(target, raw, factor)).toBe(rawQuantityToPercentage(target, raw, band, lookup));
+    }
+  });
+
+  it('round effective units down and required raw units up', () => {
+    expect(effectiveFromRaw(UnitQuantity.of('area', '1.0001'), '0.5').toString()).toBe('0.5000');
+    expect(rawFromEffective(UnitQuantity.of('area', '0.3334'), '0.5').toString()).toBe('0.6668');
+  });
+
+  it('never let a row deliver less than the share it was asked for', () => {
+    for (const factor of ['1', '0.75', '0.5']) {
+      for (let percent = 1; percent <= 100; percent += 1) {
+        const raw = percentToRaw(target, percent, factor);
+        expect(Number(rawToPercent(target, raw, factor))).toBeGreaterThanOrEqual(percent);
+      }
+    }
+  });
+
+  it('treat a zero target as zero per cent rather than dividing by it', () => {
+    expect(rawToPercent(UnitQuantity.zero('area'), UnitQuantity.of('area', '1.0'), '0.5')).toBe('0.00');
+  });
+});
+
+describe('an undescribed shortfall (§4.4 manual path)', () => {
+  it('offers every parcel in the module and says no rule was applied', () => {
+    const solution = solveModule({
+      module: 'area',
+      requiredUnits: UnitQuantity.of('area', '5.0'),
+      options: [
+        option({ parcelReference: 'LOW', distinctiveness: 'low' }),
+        option({ parcelReference: 'WOOD', broadHabitat: 'Woodland and forest', distinctiveness: 'high' }),
+      ],
+    });
+
+    expect(solution.tradingRulesApplied).toBe(false);
+    expect(solution.options).toHaveLength(2);
+    expect(solution.rejected).toHaveLength(0);
+    expect(solution.options[0]?.tradingRuleJustification).toMatch(/no trading rule was applied/);
+  });
+
+  it('still keeps the modules apart', () => {
+    const solution = solveModule({
+      module: 'area',
+      requiredUnits: UnitQuantity.of('area', '5.0'),
+      options: [option({ parcelReference: 'HEDGE', module: 'hedgerow' })],
+    });
+    expect(solution.options).toHaveLength(0);
+  });
+
+  it('still applies multipliers and clears the buffered target', () => {
+    const solution = solveModule({
+      module: 'area',
+      requiredUnits: UnitQuantity.of('area', '5.0'),
+      options: [option({ spatialBand: 'outside', availableUnits: UnitQuantity.of('area', '30.0') })],
+    });
+    expect(solution.suggested[0]?.rawQuantity.toString()).toBe('10.0100');
+    expect(solution.shortOfTarget).toBe(false);
+  });
+
+  it('reports rules as applied when the habitat lost is described', () => {
+    const solution = solveModule({
+      module: 'area',
+      requiredUnits: UnitQuantity.of('area', '5.0'),
+      shortfall: shortfall(),
+      options: [option()],
+    });
+    expect(solution.tradingRulesApplied).toBe(true);
   });
 });

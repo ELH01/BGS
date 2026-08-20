@@ -42,6 +42,7 @@ export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
+  patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
 };
 
 export interface Me {
@@ -195,4 +196,165 @@ export function formatMoney(value: string | null): string {
   const negative = value.startsWith('-');
   const [whole = '0', fraction = '00'] = value.replace('-', '').split('.');
   return `${negative ? '-' : ''}£${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${fraction}`;
+}
+
+// ---------------------------------------------------------------------------
+// Quotes, developers and the allocation table
+// ---------------------------------------------------------------------------
+
+export type QuoteStatus = 'draft' | 'quoted' | 'reserved' | 'sold' | 'cancelled';
+export type QuotePriority = 'high' | 'medium' | 'low';
+export type SpatialBand = 'same-lpa' | 'neighbouring-lpa-same-nca' | 'outside';
+
+export const QUOTE_STATUS_LABEL: Record<QuoteStatus, string> = {
+  draft: 'Draft',
+  quoted: 'Quoted',
+  reserved: 'Reserved',
+  sold: 'Sold',
+  cancelled: 'Cancelled',
+};
+
+export const SPATIAL_BAND_LABEL: Record<SpatialBand, string> = {
+  'same-lpa': 'Same LPA',
+  'neighbouring-lpa-same-nca': 'Neighbouring LPA, same NCA',
+  outside: 'Outside',
+};
+
+export interface Developer {
+  id: string;
+  purchasingEntityName: string;
+  billingAddress: string | null;
+  developmentSiteName: string | null;
+  developmentSiteAddress: string | null;
+  developmentLpaCode: string | null;
+  developmentLpaName: string | null;
+  developmentNcaCode: string | null;
+  developmentNcaName: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  notes: string | null;
+}
+
+export interface AllocationLine {
+  id: string;
+  stockParcelId: string;
+  module: MetricModule;
+  rawQuantity: string;
+  spatialBand: SpatialBand;
+  spatialFactor: string;
+  effectiveUnits: string;
+  unitPrice: string;
+  lineTotal: string;
+  tradingRuleJustification: string | null;
+}
+
+export interface QuoteModuleTarget {
+  module: MetricModule;
+  source: 'metric' | 'manual';
+  requiredUnits: string;
+  bufferedTargetUnits: string;
+  shortfallBroadHabitat: string | null;
+  shortfallHabitatType: string | null;
+  shortfallDistinctiveness: DistinctivenessBand | null;
+}
+
+export interface Quote {
+  id: string;
+  reference: string;
+  developerId: string;
+  developerMetricId: string | null;
+  status: QuoteStatus;
+  priority: QuotePriority;
+  totalPrice: string;
+  notes: string | null;
+  lastActivityAt: string;
+  reservationExpiresAt: string | null;
+  cancellationReason: string | null;
+  soldAt: string | null;
+  isStale: boolean;
+  targets: QuoteModuleTarget[];
+  lines: AllocationLine[];
+}
+
+export interface QuoteSummary {
+  id: string;
+  reference: string;
+  developerId: string;
+  developerName: string;
+  status: QuoteStatus;
+  priority: QuotePriority;
+  totalPrice: string;
+  lastActivityAt: string;
+  reservationExpiresAt: string | null;
+  isStale: boolean;
+  lineCount: number;
+}
+
+export interface SaleRecord {
+  id: string;
+  planningApplicationReference: string | null;
+  bgsRegisterSubmissionDate: string | null;
+  soldDate: string;
+  reversedAt: string | null;
+  reversalReason: string | null;
+}
+
+export interface AuditRecord {
+  id: string;
+  action: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+/** One row of the allocation table: a parcel that may lawfully fill the shortfall. */
+export interface AllocationOption {
+  stockParcelId: string;
+  siteId: string;
+  siteName: string;
+  parcelReference: string;
+  broadHabitat: string;
+  habitatType: string;
+  distinctiveness: DistinctivenessBand;
+  condition: ConditionBand;
+  availableUnits: string;
+  listPricePerUnit: string | null;
+  spatialBand: SpatialBand;
+  spatialFactor: string;
+  rawUnitsPerEffectiveUnit: string;
+  maximumEffectiveUnits: string;
+  effectiveCostPerUnit: string | null;
+  tradingRuleJustification: string;
+}
+
+export interface AllocationSolution {
+  module: MetricModule;
+  requiredUnits: string;
+  bufferedTargetUnits: string;
+  options: AllocationOption[];
+  suggested: Array<{
+    stockParcelId: string;
+    rawQuantity: string;
+    effectiveUnits: string;
+    unitPrice: string | null;
+    lineTotal: string | null;
+  }>;
+  suggestedEffectiveUnits: string;
+  shortOfTarget: boolean;
+  unmetUnits: string;
+  rejected: Array<{ stockParcelId: string; parcelReference: string; reason: string }>;
+  /** False when the habitat lost was not described, so nothing was filtered. */
+  tradingRulesApplied: boolean;
+  spatialScheme: { id: string; status: string };
+}
+
+export interface TargetStatus {
+  module: MetricModule;
+  requiredUnits: string;
+  bufferedTargetUnits: string;
+  deliveredUnits: string;
+  shortBy: string;
+  meetsTarget: boolean;
 }

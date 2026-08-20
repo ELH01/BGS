@@ -32,6 +32,13 @@ export interface QuoteModuleTarget {
   source: 'metric' | 'manual';
   requiredUnits: UnitQuantity;
   bufferedTargetUnits: UnitQuantity;
+  /**
+   * The habitat lost, which the trading rules filter against. All three are
+   * absent together when the enquiry did not describe it (§4.4 manual path).
+   */
+  shortfallBroadHabitat: string | null;
+  shortfallHabitatType: string | null;
+  shortfallDistinctiveness: string | null;
 }
 
 export interface Quote {
@@ -101,6 +108,9 @@ interface TargetRow {
   source: 'metric' | 'manual';
   required_units: string;
   buffered_target_units: string;
+  shortfall_broad_habitat: string | null;
+  shortfall_habitat_type: string | null;
+  shortfall_distinctiveness: string | null;
 }
 
 function toLine(row: LineRow): AllocationLine {
@@ -127,6 +137,9 @@ function toTarget(row: TargetRow): QuoteModuleTarget {
     source: row.source,
     requiredUnits: UnitQuantity.of(module, row.required_units),
     bufferedTargetUnits: UnitQuantity.of(module, row.buffered_target_units),
+    shortfallBroadHabitat: row.shortfall_broad_habitat,
+    shortfallHabitatType: row.shortfall_habitat_type,
+    shortfallDistinctiveness: row.shortfall_distinctiveness,
   };
 }
 
@@ -382,8 +395,10 @@ export async function createDraftQuote(db: Queryable, input: CreateQuoteInput): 
   for (const target of input.targets) {
     await db.query(
       `INSERT INTO quote_module_target (organisation_id, quote_id, module, source,
-                                        required_units, buffered_target_units)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
+                                        required_units, buffered_target_units,
+                                        shortfall_broad_habitat, shortfall_habitat_type,
+                                        shortfall_distinctiveness)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
       [
         input.organisationId,
         quoteId,
@@ -391,6 +406,9 @@ export async function createDraftQuote(db: Queryable, input: CreateQuoteInput): 
         target.source,
         target.requiredUnits.toString(),
         target.bufferedTargetUnits.toString(),
+        target.shortfallBroadHabitat,
+        target.shortfallHabitatType,
+        target.shortfallDistinctiveness,
       ],
     );
   }

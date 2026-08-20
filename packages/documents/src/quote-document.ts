@@ -319,13 +319,17 @@ export function buildQuoteDocument(input: QuoteDocumentInput): Document {
     );
   }
 
-  if (vat.treatment === 'none') {
-    rows.push(totalsRow('Total', totals.gross.format(), accent, true));
-  } else {
-    rows.push(totalsRow('Subtotal', totals.net.format(), accent));
-    rows.push(totalsRow(`VAT at ${vat.ratePercent}%`, (totals.vat ?? Money.zero()).format(), accent));
-    rows.push(totalsRow('Total', totals.gross.format(), accent, true));
-  }
+  // All three figures, always: the total the purchaser's finance team will
+  // book, the VAT, and the amount actually payable.
+  rows.push(totalsRow('Total excluding VAT', totals.net.format(), accent));
+  rows.push(
+    totalsRow(
+      totals.vatCharged ? `VAT at ${totals.ratePercent}%` : 'VAT (not charged)',
+      totals.vat.format(),
+      accent,
+    ),
+  );
+  rows.push(totalsRow('Total including VAT', totals.gross.format(), accent, true));
 
   children.push(
     new Table({
@@ -335,11 +339,20 @@ export function buildQuoteDocument(input: QuoteDocumentInput): Document {
     }),
   );
 
-  if (vat.treatment === 'standard-rate' && vat.registrationNumber) {
+  if (vat.registrationNumber) {
     children.push(
       new Paragraph({
         spacing: { before: 120 },
         children: [new TextRun({ text: `VAT registration ${vat.registrationNumber}`, size: 18, color: '5F6B60' })],
+      }),
+    );
+  } else if (!totals.vatCharged) {
+    children.push(
+      new Paragraph({
+        spacing: { before: 120 },
+        children: [
+          new TextRun({ text: 'No VAT is charged on this quotation.', size: 18, color: '5F6B60' }),
+        ],
       }),
     );
   }

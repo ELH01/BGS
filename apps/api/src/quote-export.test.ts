@@ -182,7 +182,19 @@ describe('the quote document (§4.7)', () => {
     const text = documentText(response.rawPayload);
 
     expect(text).toContain('spatial risk multipliers');
-    expect(text).toContain('VAT treatment is to be confirmed');
+    expect(text).toContain('has not yet been confirmed for this operator');
+  });
+
+  it('shows the total excluding VAT, the VAT, and the total including VAT', async () => {
+    const response = await call('GET', `/api/quotes/${quoteId}/document`);
+    const text = documentText(response.rawPayload);
+
+    expect(text).toContain('Total excluding VAT');
+    expect(text).toContain('£46,914.00');
+    expect(text).toContain('VAT at 20%');
+    expect(text).toContain('£9,382.80');
+    expect(text).toContain('Total including VAT');
+    expect(text).toContain('£56,296.80');
   });
 
   it('refuses to export a quote with no allocation', async () => {
@@ -291,9 +303,20 @@ describe('document preview warnings', () => {
     expect(response.body.warnings.some((w: string) => /no quote branding set/.test(w))).toBe(true);
   });
 
-  it('reports VAT as unconfigured by default', async () => {
+  it('charges VAT at the standard rate by default, and says it is not yet confirmed', async () => {
     const response = await json('GET', `/api/quotes/${quoteId}/document-preview`);
-    expect(response.body.vat.treatment).toBe('none');
+    expect(response.body.vat.treatment).toBe('standard-rate');
     expect(response.body.vat.status).toBe('unconfirmed');
+  });
+
+  it('reports all three totals, so the screen shows what the document will', async () => {
+    const response = await json('GET', `/api/quotes/${quoteId}/document-preview`);
+    expect(response.body.totals).toEqual({
+      excludingVat: '46914.00',
+      vat: '9382.80',
+      includingVat: '56296.80',
+      vatCharged: true,
+      ratePercent: '20',
+    });
   });
 });

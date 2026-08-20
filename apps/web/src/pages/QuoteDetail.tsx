@@ -285,6 +285,38 @@ export default function QuoteDetail(): ReactNode {
         );
       })}
 
+      {preview && quote.lines.length > 0 && (
+        <div className="card">
+          <h2>Totals</h2>
+          <table>
+            <tbody>
+              <tr>
+                <th>Total excluding VAT</th>
+                <td className="numeric">{formatMoney(preview.totals.excludingVat)}</td>
+              </tr>
+              <tr>
+                <th>
+                  {preview.totals.vatCharged ? `VAT at ${preview.totals.ratePercent}%` : 'VAT (not charged)'}
+                </th>
+                <td className="numeric">{formatMoney(preview.totals.vat)}</td>
+              </tr>
+              <tr>
+                <th>Total including VAT</th>
+                <td className="numeric">
+                  <strong>{formatMoney(preview.totals.includingVat)}</strong>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          {preview.vat.status === 'unconfirmed' && (
+            <p className="hint">
+              The standard rate is applied by default. Set VAT_TREATMENT once the position is settled, and
+              this stops being marked provisional.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="card">
         <h2>Actions</h2>
         <div className="row" style={{ flexWrap: 'wrap' }}>

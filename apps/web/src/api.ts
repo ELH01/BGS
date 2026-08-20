@@ -364,7 +364,13 @@ export interface DocumentPreview {
   brandingOperator: { id: string; name: string } | null;
   operatorCount: number;
   lineCount: number;
-  net: string;
+  totals: {
+    excludingVat: string;
+    vat: string;
+    includingVat: string;
+    vatCharged: boolean;
+    ratePercent: string;
+  };
   vat: { treatment: 'none' | 'standard-rate'; ratePercent: string; status: string };
   filename: string;
   warnings: string[];

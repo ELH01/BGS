@@ -183,21 +183,38 @@ describe('units required (§4.7, optional section)', () => {
   });
 });
 
-describe('VAT treatment (§5.7, unconfirmed)', () => {
-  it('defaults to a flat total with no VAT line', async () => {
+describe('VAT: totals with and without', () => {
+  it('shows all three figures by default', async () => {
     const text = await documentText(input());
-    expect(text).toContain('Total');
-    expect(text).not.toContain('VAT at');
+    expect(text).toContain('Total excluding VAT');
+    expect(text).toContain('VAT at 20%');
+    expect(text).toContain('Total including VAT');
   });
 
-  it('adds a subtotal, VAT and total when standard-rated', async () => {
-    const vat: VatConfig = { treatment: 'standard-rate', ratePercent: '20', status: 'confirmed' };
-    const text = await documentText(input({ vat }));
-    expect(text).toContain('Subtotal');
-    expect(text).toContain('VAT at 20%');
+  it('gets the three figures right', async () => {
+    const text = await documentText(input());
     // 46,914.00 net, 9,382.80 VAT, 56,296.80 gross.
+    expect(text).toContain('£46,914.00');
     expect(text).toContain('£9,382.80');
     expect(text).toContain('£56,296.80');
+  });
+
+  it('honours a different rate', async () => {
+    const vat: VatConfig = { treatment: 'standard-rate', ratePercent: '5', status: 'confirmed' };
+    const text = await documentText(input({ vat }));
+    expect(text).toContain('VAT at 5%');
+    expect(text).toContain('£2,345.70');
+    expect(text).toContain('£49,259.70');
+  });
+
+  it('still shows all three lines when no VAT is charged, so it reads as considered', async () => {
+    const vat: VatConfig = { treatment: 'none', ratePercent: '20', status: 'confirmed' };
+    const text = await documentText(input({ vat }));
+
+    expect(text).toContain('Total excluding VAT');
+    expect(text).toContain('VAT (not charged)');
+    expect(text).toContain('Total including VAT');
+    expect(text).toContain('No VAT is charged on this quotation');
   });
 
   it('prints the registration number when there is one', async () => {
@@ -221,14 +238,24 @@ describe('VAT treatment (§5.7, unconfirmed)', () => {
       status: 'confirmed',
     });
     expect(totals.net.toString()).toBe('100.00');
-    expect(totals.vat?.toString()).toBe('20.00');
+    expect(totals.vat.toString()).toBe('20.00');
     expect(totals.gross.toString()).toBe('120.00');
   });
 
-  it('leaves the gross equal to the net when no VAT applies', () => {
-    const totals = quoteTotals([Money.of('100')], DEFAULT_VAT_CONFIG);
-    expect(totals.vat).toBeNull();
+  it('reports zero VAT rather than nothing when none is charged', () => {
+    const totals = quoteTotals([Money.of('100')], {
+      treatment: 'none',
+      ratePercent: '20',
+      status: 'confirmed',
+    });
+    expect(totals.vat.toString()).toBe('0.00');
+    expect(totals.vatCharged).toBe(false);
     expect(totals.gross.equals(totals.net)).toBe(true);
+  });
+
+  it('defaults to charging VAT at the standard rate', () => {
+    expect(DEFAULT_VAT_CONFIG.treatment).toBe('standard-rate');
+    expect(quoteTotals([Money.of('100')], DEFAULT_VAT_CONFIG).vat.toString()).toBe('20.00');
   });
 
   it('refuses a nonsensical rate', () => {

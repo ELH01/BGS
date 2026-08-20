@@ -8,6 +8,7 @@ import {
 import {
   DEFAULT_VAT_CONFIG,
   quoteDocumentFilename,
+  quoteTotals,
   renderQuoteDocument,
   type QuoteDocumentInput,
   type VatConfig,
@@ -18,13 +19,13 @@ import { loadApiConfig } from '../env.js';
 /**
  * VAT configuration, read from the environment.
  *
- * §5.7 is an open question — whether unit sales are standard-rated and whether
- * the operator is registered — so the treatment is configured rather than
- * assumed, and defaults to a flat total with no VAT line. Setting
- * VAT_TREATMENT=standard-rate turns on the subtotal/VAT/total breakdown.
+ * Quotes carry the total excluding VAT, the VAT, and the total including VAT.
+ * Standard rate is the default; set VAT_TREATMENT=none where the operator is
+ * not registered, and the document says so explicitly rather than leaving a
+ * reader to wonder whether VAT was forgotten.
  */
 function vatConfig(): VatConfig {
-  const treatment = process.env['VAT_TREATMENT'] === 'standard-rate' ? 'standard-rate' : 'none';
+  const treatment = process.env['VAT_TREATMENT'] === 'none' ? 'none' : 'standard-rate';
   const registrationNumber = process.env['VAT_REGISTRATION_NUMBER'];
 
   return {
@@ -94,7 +95,9 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
       }
       const vat = vatConfig();
       if (vat.status === 'unconfirmed') {
-        caveats.push('Prices are exclusive of VAT. VAT treatment is to be confirmed.');
+        caveats.push(
+          'The VAT treatment shown is the standard rate applied by default and has not yet been confirmed for this operator.',
+        );
       }
 
       const requirements = source.quote.targets.filter((target) => target.requiredUnits.isPositive());
@@ -154,7 +157,10 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
       if (!source) return reply.code(404).send({ error: 'Quote not found.' });
 
       const vat = vatConfig();
-      const net = Money.sum(source.quote.lines.map((line) => line.lineTotal));
+      const totals = quoteTotals(
+        source.quote.lines.map((line) => line.lineTotal),
+        vat,
+      );
       const warnings: string[] = [];
 
       if (source.quote.lines.length === 0) {
@@ -182,7 +188,14 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
         brandingOperator: operator ? { id: operator.id, name: operator.name } : null,
         operatorCount: source.operators.length,
         lineCount: source.quote.lines.length,
-        net: net.toString(),
+        // All three figures, so the screen can show what the document will.
+        totals: {
+          excludingVat: totals.net.toString(),
+          vat: totals.vat.toString(),
+          includingVat: totals.gross.toString(),
+          vatCharged: totals.vatCharged,
+          ratePercent: totals.ratePercent,
+        },
         vat: { treatment: vat.treatment, ratePercent: vat.ratePercent, status: vat.status },
         filename: quoteDocumentFilename(source.quote.reference),
         warnings,

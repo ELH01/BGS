@@ -4,15 +4,18 @@ import { Money } from '@bgs/core';
 /**
  * VAT treatment of a quote.
  *
- * §5.7 of the specification lists this as an open question: whether unit sales
- * are standard-rated, and whether the operator is VAT registered, decide
- * whether a quote needs a subtotal/VAT/total breakdown or a single figure.
+ * Quotes show the total excluding VAT, the VAT itself, and the total
+ * including VAT — so a purchaser can see both the figure their finance team
+ * will book and the figure they will actually pay.
  *
- * Rather than guess, the treatment is configuration. `none` produces the flat
- * total the platform has used all along, and is the default. `standard-rate`
- * adds the breakdown. Nothing about the stored line data changes either way —
- * a quote priced today still renders correctly if the treatment changes
- * tomorrow, because VAT is applied at render time from the stored net figures.
+ * `standard-rate` is the default. `none` remains available for the case where
+ * the operator is not VAT registered, and prints a single total with a line
+ * saying no VAT is charged, rather than leaving the reader to wonder whether
+ * it was forgotten.
+ *
+ * The treatment is applied at render time from the stored net figures, so
+ * nothing about a quote priced today has to change if the position is settled
+ * differently tomorrow.
  */
 export type VatTreatment = 'none' | 'standard-rate';
 
@@ -31,18 +34,22 @@ export interface VatConfig {
 }
 
 export const DEFAULT_VAT_CONFIG: VatConfig = Object.freeze({
-  treatment: 'none',
+  treatment: 'standard-rate',
   ratePercent: '20',
   status: 'unconfirmed',
 });
 
 export interface QuoteTotals {
-  /** Sum of the line totals, before any VAT. */
+  /** Sum of the line totals. The total excluding VAT. */
   net: Money;
-  /** Null when no VAT is applied. */
-  vat: Money | null;
-  /** Net plus VAT, or simply net when no VAT is applied. */
+  /** The VAT itself. Zero, not null, when none is charged — see below. */
+  vat: Money;
+  /** Net plus VAT. The total including VAT. */
   gross: Money;
+  /** Whether VAT is actually being charged, for wording the document. */
+  vatCharged: boolean;
+  /** The rate applied, for the VAT line's label. */
+  ratePercent: string;
 }
 
 /**
@@ -55,7 +62,9 @@ export function quoteTotals(lineTotals: readonly Money[], config: VatConfig = DE
   const net = Money.sum(lineTotals);
 
   if (config.treatment === 'none') {
-    return { net, vat: null, gross: net };
+    // Zero rather than null, so a document always has all three figures to
+    // print and the reader can see VAT was considered rather than omitted.
+    return { net, vat: Money.zero(), gross: net, vatCharged: false, ratePercent: '0' };
   }
 
   const rate = new Decimal(config.ratePercent);
@@ -64,5 +73,5 @@ export function quoteTotals(lineTotals: readonly Money[], config: VatConfig = DE
   }
 
   const vat = net.times(rate.dividedBy(100));
-  return { net, vat, gross: net.plus(vat) };
+  return { net, vat, gross: net.plus(vat), vatCharged: true, ratePercent: config.ratePercent };
 }

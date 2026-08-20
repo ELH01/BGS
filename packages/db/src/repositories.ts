@@ -90,15 +90,15 @@ export interface BankOperatorInput {
   /** Owning organisation. May differ from the acting one under a grant. */
   organisationId: string;
   name: string;
-  contactName?: string | null;
-  contactEmail?: string | null;
-  contactPhone?: string | null;
-  notes?: string | null;
-  brandingCompanyName?: string | null;
-  brandingAddress?: string | null;
-  brandingContact?: string | null;
-  brandingLogoFileId?: string | null;
-  brandingAccentColour?: string | null;
+  contactName?: string | null | undefined;
+  contactEmail?: string | null | undefined;
+  contactPhone?: string | null | undefined;
+  notes?: string | null | undefined;
+  brandingCompanyName?: string | null | undefined;
+  brandingAddress?: string | null | undefined;
+  brandingContact?: string | null | undefined;
+  brandingLogoFileId?: string | null | undefined;
+  brandingAccentColour?: string | null | undefined;
 }
 
 export async function createBankOperator(db: Queryable, input: BankOperatorInput): Promise<BankOperator> {
@@ -235,15 +235,15 @@ export interface SiteInput {
   organisationId: string;
   bankOperatorId: string;
   name: string;
-  location?: string | null;
-  lpaCode?: string | null;
-  lpaName?: string | null;
-  ncaCode?: string | null;
-  ncaName?: string | null;
-  lnrsAreaCode?: string | null;
-  lnrsAreaName?: string | null;
-  bgsRegisterReference?: string | null;
-  notes?: string | null;
+  location?: string | null | undefined;
+  lpaCode?: string | null | undefined;
+  lpaName?: string | null | undefined;
+  ncaCode?: string | null | undefined;
+  ncaName?: string | null | undefined;
+  lnrsAreaCode?: string | null | undefined;
+  lnrsAreaName?: string | null | undefined;
+  bgsRegisterReference?: string | null | undefined;
+  notes?: string | null | undefined;
 }
 
 const SITE_COLUMNS = `organisation_id, bank_operator_id, name, location, lpa_code, lpa_name,
@@ -373,16 +373,16 @@ function toParcel(row: ParcelRow): StockParcel {
 export interface StockParcelInput {
   organisationId: string;
   siteId: string;
-  metricImportId?: string | null;
+  metricImportId?: string | null | undefined;
   parcelReference: string;
   module: MetricModule;
   broadHabitat: string;
   habitatType: string;
   distinctiveness: DistinctivenessBand;
-  condition?: ConditionBand;
+  condition?: ConditionBand | undefined;
   totalUnits: UnitQuantity;
-  listPricePerUnit?: Money | null;
-  notes?: string | null;
+  listPricePerUnit?: Money | null | undefined;
+  notes?: string | null | undefined;
 }
 
 export async function createStockParcel(db: Queryable, input: StockParcelInput): Promise<StockParcel> {

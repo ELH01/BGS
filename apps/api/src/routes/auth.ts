@@ -12,6 +12,7 @@ import {
 import { hashPassword, verifyPassword, wasteTimeLikeAVerification } from '../auth/password.js';
 import { SESSION_COOKIE, hashToken, issueSessionToken, sessionCookieOptions } from '../auth/session.js';
 import { loadApiConfig } from '../env.js';
+import { authRateLimit } from '../security.js';
 import { describeDatabaseError, parseBody } from '../http.js';
 
 const loginSchema = z.object({
@@ -42,7 +43,9 @@ const signupSchema = z.object({
 export default async function authRoutes(app: FastifyInstance): Promise<void> {
   const config = loadApiConfig();
 
-  app.post('/api/auth/login', async (request, reply) => {
+  // Tightly rate limited: a list of emails and a list of common passwords is
+  // the realistic route into someone else's quote book.
+  app.post('/api/auth/login', { config: { rateLimit: authRateLimit() } }, async (request, reply) => {
     const body = parseBody(loginSchema, request.body, reply);
     if (!body) return;
 
@@ -96,7 +99,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
    * so a third-party bank operator can be onboarded. Set SIGNUP_OPEN=false to
    * close it once the accounts that should exist do.
    */
-  app.post('/api/auth/signup', async (request, reply) => {
+  app.post('/api/auth/signup', { config: { rateLimit: authRateLimit() } }, async (request, reply) => {
     if (process.env['SIGNUP_OPEN'] === 'false') {
       return reply.code(403).send({ error: 'Sign-up is closed on this instance.' });
     }

@@ -108,6 +108,36 @@ written. The multiplier reaches the workbook as the spatial risk category in its
 own column, and the workbook applies it. Applying it here as well would deduct
 it twice.
 
+### Security: what protects the quotes
+
+Stock levels, negotiated pricing, and who is being quoted for what are the
+commercially sensitive things here. Four layers protect them, and each is
+tested rather than asserted.
+
+**Isolation is enforced by Postgres, not by application code.** See below. The
+coverage test reads the database catalogue rather than a list in a test file,
+so a table added later without row-level security fails the suite the moment it
+exists — that being the realistic way data leaks out of a system like this.
+
+**Nothing is cached.** Every API response carries `no-store, private`. Quote and
+allocation responses are exactly what ends up in a shared proxy or on disk in a
+browser cache, to be read by the next person at that machine.
+
+**Errors give nothing away.** Postgres's own constraint text names the table and
+the constraint, and its detail names the failing row. None of it is forwarded;
+constraint violations are answered with messages written here. Rules this
+codebase wrote raise a different SQLSTATE so they can still be passed through
+verbatim, since those are composed for a reader. A quote belonging to another
+organisation answers 404 rather than 403 — 403 would confirm the id exists.
+Login gives an identical response and comparable timing whether or not the
+account exists.
+
+**Sessions and forgery.** Only a hash of each session token is stored. Cookies
+are `HttpOnly` and `SameSite=Lax`, and `Secure` once deployed; state-changing
+requests additionally check the `Origin`. Login is rate limited tightly, since a
+list of emails and a list of common passwords is the realistic route into
+someone else's quote book.
+
 ### Tenant isolation is the database's job, not the query layer's
 
 `organisation` is the tenant. The allocation management service — Cosdon

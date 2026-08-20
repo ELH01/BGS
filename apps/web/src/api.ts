@@ -358,3 +358,44 @@ export interface TargetStatus {
   shortBy: string;
   meetsTarget: boolean;
 }
+
+export interface DocumentPreview {
+  reference: string;
+  brandingOperator: { id: string; name: string } | null;
+  operatorCount: number;
+  lineCount: number;
+  net: string;
+  vat: { treatment: 'none' | 'standard-rate'; ratePercent: string; status: string };
+  filename: string;
+  warnings: string[];
+}
+
+/**
+ * Download a generated file.
+ *
+ * Fetched rather than linked so the session cookie and any error response are
+ * handled the same way as every other call; a plain link would show the JSON
+ * error body in a new tab if something went wrong.
+ */
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const response = await fetch(path, { credentials: 'same-origin' });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const error = new Error(payload?.error ?? `Download failed (${response.status}).`) as ApiError;
+    error.status = response.status;
+    throw error;
+  }
+
+  const disposition = response.headers.get('content-disposition') ?? '';
+  const named = /filename="([^"]+)"/.exec(disposition)?.[1];
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = named ?? fallbackName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}

@@ -681,3 +681,121 @@ export async function updateSaleRegisterDate(
     date,
   ]);
 }
+
+/**
+ * Everything the quote document needs, gathered in one query.
+ *
+ * A quote's branding comes from the bank operator behind its stock, not from
+ * whoever is running the platform (§4.7), so the operator is reached through
+ * the allocation lines: line to parcel to site to operator.
+ */
+export interface QuoteDocumentSource {
+  quote: Quote;
+  purchaser: {
+    entityName: string;
+    billingAddress: string | null;
+    contactName: string | null;
+    contactEmail: string | null;
+  };
+  /** Distinct operators supplying this quote, ordered by units supplied. */
+  operators: Array<{
+    id: string;
+    name: string;
+    brandingCompanyName: string | null;
+    brandingAddress: string | null;
+    brandingContact: string | null;
+    brandingAccentColour: string | null;
+    brandingLogoFileId: string | null;
+    unitsSupplied: string;
+  }>;
+  /** Habitat description per line, for the document's line items. */
+  lineDetails: Array<{
+    allocationLineId: string;
+    broadHabitat: string;
+    habitatType: string;
+    distinctiveness: string;
+  }>;
+}
+
+export async function getQuoteDocumentSource(
+  db: Queryable,
+  quoteId: string,
+  staleAfterDays = 60,
+): Promise<QuoteDocumentSource | null> {
+  const quote = await getQuote(db, quoteId, staleAfterDays);
+  if (!quote) return null;
+
+  const { rows: developerRows } = await db.query<{
+    purchasing_entity_name: string;
+    billing_address: string | null;
+    contact_name: string | null;
+    contact_email: string | null;
+  }>(
+    'SELECT purchasing_entity_name, billing_address, contact_name, contact_email FROM developer WHERE id = $1',
+    [quote.developerId],
+  );
+  const developer = developerRows[0];
+  if (!developer) return null;
+
+  const { rows: operatorRows } = await db.query<{
+    id: string;
+    name: string;
+    branding_company_name: string | null;
+    branding_address: string | null;
+    branding_contact: string | null;
+    branding_accent_colour: string | null;
+    branding_logo_file_id: string | null;
+    units_supplied: string;
+  }>(
+    `SELECT o.id, o.name, o.branding_company_name, o.branding_address, o.branding_contact,
+            o.branding_accent_colour, o.branding_logo_file_id,
+            sum(l.raw_quantity)::text AS units_supplied
+       FROM allocation_line l
+       JOIN stock_parcel p ON p.id = l.stock_parcel_id
+       JOIN habitat_bank_site s ON s.id = p.site_id
+       JOIN bank_operator o ON o.id = s.bank_operator_id
+      WHERE l.quote_id = $1
+      GROUP BY o.id
+      ORDER BY sum(l.raw_quantity) DESC, o.name`,
+    [quoteId],
+  );
+
+  const { rows: detailRows } = await db.query<{
+    allocation_line_id: string;
+    broad_habitat: string;
+    habitat_type: string;
+    distinctiveness: string;
+  }>(
+    `SELECT l.id AS allocation_line_id, p.broad_habitat, p.habitat_type, p.distinctiveness
+       FROM allocation_line l
+       JOIN stock_parcel p ON p.id = l.stock_parcel_id
+      WHERE l.quote_id = $1`,
+    [quoteId],
+  );
+
+  return {
+    quote,
+    purchaser: {
+      entityName: developer.purchasing_entity_name,
+      billingAddress: developer.billing_address,
+      contactName: developer.contact_name,
+      contactEmail: developer.contact_email,
+    },
+    operators: operatorRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      brandingCompanyName: row.branding_company_name,
+      brandingAddress: row.branding_address,
+      brandingContact: row.branding_contact,
+      brandingAccentColour: row.branding_accent_colour,
+      brandingLogoFileId: row.branding_logo_file_id,
+      unitsSupplied: row.units_supplied,
+    })),
+    lineDetails: detailRows.map((row) => ({
+      allocationLineId: row.allocation_line_id,
+      broadHabitat: row.broad_habitat,
+      habitatType: row.habitat_type,
+      distinctiveness: row.distinctiveness,
+    })),
+  };
+}

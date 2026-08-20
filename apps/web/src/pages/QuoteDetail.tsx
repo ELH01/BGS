@@ -9,8 +9,10 @@ import {
   type AuditRecord,
   type Developer,
   type MetricModule,
+  type DocumentPreview,
   type Quote,
   type SaleRecord,
+  downloadFile,
 } from '../api';
 import { AllocationTable, type AllocationRowState } from '../components/AllocationTable';
 import { ErrorBanner, Field } from '../components/common';
@@ -28,6 +30,7 @@ export default function QuoteDetail(): ReactNode {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [preview, setPreview] = useState<DocumentPreview | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -73,6 +76,14 @@ export default function QuoteDetail(): ReactNode {
         });
       }
       setSolutions(solved);
+
+      // What the exported document would say, so its warnings appear before
+      // someone sends the file rather than after.
+      try {
+        setPreview(await api.get<DocumentPreview>(`/api/quotes/${id}/document-preview`));
+      } catch {
+        setPreview(null);
+      }
     } catch (caught) {
       setError(caught);
     }
@@ -170,6 +181,18 @@ export default function QuoteDetail(): ReactNode {
     }
     setBusy(false);
     await transition('quoted');
+  }
+
+  async function downloadDocument(): Promise<void> {
+    setError(null);
+    setBusy(true);
+    try {
+      await downloadFile(`/api/quotes/${quote!.id}/document`, `Quote-${quote!.reference}.docx`);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function cancel(): Promise<void> {
@@ -295,7 +318,29 @@ export default function QuoteDetail(): ReactNode {
               Cancel quote
             </button>
           )}
+          {quote.lines.length > 0 && (
+            <button onClick={() => void downloadDocument()} disabled={busy} className="secondary">
+              Download quote document
+            </button>
+          )}
         </div>
+
+        {preview && preview.warnings.length > 0 && (
+          <div className="banner warning" style={{ marginTop: '0.9rem', marginBottom: 0 }}>
+            <strong>Before sending the quote document</strong>
+            <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
+              {preview.warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {preview?.brandingOperator && preview.warnings.length === 0 && (
+          <p className="hint" style={{ marginTop: '0.75rem' }}>
+            The document will be branded as {preview.brandingOperator.name}.
+          </p>
+        )}
         {quote.status === 'draft' && (
           <p className="hint" style={{ marginTop: '0.75rem' }}>
             An allocation can be saved below target and picked up later. Issuing the quote is what requires

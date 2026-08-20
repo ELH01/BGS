@@ -69,7 +69,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(cors, {
     // The browser client is served from a different port in development.
     // Credentials are required because the session lives in a cookie.
-    origin: config.webOrigin,
+    origin: config.allowedOrigins,
     credentials: true,
   });
 

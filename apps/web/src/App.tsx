@@ -35,8 +35,8 @@ export default function App(): ReactNode {
     <div className="app">
       <aside className="sidebar">
         <div className="brand">
-          <strong>{me.organisation.name}</strong>
-          <span>Habitat bank operations</span>
+          <img src="/cosdon-logo-light.png" alt="Cosdon Consulting" />
+          <span>{me.organisation.name}</span>
         </div>
 
         <nav>

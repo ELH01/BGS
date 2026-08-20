@@ -242,7 +242,7 @@ export default function QuoteDetail(): ReactNode {
       </div>
 
       <ErrorBanner error={error} />
-      {notice && <div className="banner" style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--accent)' }}>{notice}</div>}
+      {notice && <div className="banner">{notice}</div>}
 
       {quote.status === 'cancelled' && (
         <div className="banner warning">
@@ -253,7 +253,7 @@ export default function QuoteDetail(): ReactNode {
       )}
 
       {quote.status === 'sold' && sale && (
-        <div className="banner" style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--accent)' }}>
+        <div className="banner">
           <strong>Sold on {new Date(sale.soldDate).toLocaleDateString('en-GB')}.</strong>
           {sale.planningApplicationReference
             ? `Planning reference ${sale.planningApplicationReference}.`

@@ -205,6 +205,34 @@ Spatial risk is built as a swappable *scheme* rather than a fixed lookup, so the
 signalled move onto LNRS boundaries can be added alongside the current one and
 selected per site without the solver changing.
 
+## Branding
+
+The interface follows the Cosdon guidelines:
+
+| | |
+|---|---|
+| Cosdon Green | `#385B4F` — primary actions, links, accents |
+| Cosdon Dark | `#33443C` — the sidebar and headings |
+| Off White (Rocks) | `#FAF9F1` — the cairn in the logo, and type on dark ground |
+| Neutral background | `#F8F8F8` |
+
+Everything is driven from custom properties at the top of
+`apps/web/src/styles.css`, so a change to the palette is a change in one place.
+
+The logo is used in two forms: the original for light ground, and a reversed
+version — off-white disc, green cairn — for the dark sidebar and the sign-in
+screen. Both are generated into `apps/web/public/`.
+
+**Fonts are not committed.** Intro Rust and Aileron are licensed to Cosdon, not
+to this repository. `apps/web/public/fonts/README.md` says which files to drop
+in; until then the app falls back to the closest system faces without any
+change in layout.
+
+Note the distinction between this and the **per-operator branding** on quote
+documents. This section is the application's own identity, which is Cosdon's.
+A quote drawn from a third party's stock carries *their* branding, taken from
+the bank operator record — see §3.1.
+
 ## Backup is two different things
 
 §4.8 was written for a single local SQLite file, where backup meant copying it.

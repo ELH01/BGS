@@ -42,7 +42,7 @@ export default function SignIn(): ReactNode {
     <div className="auth-shell">
       <div className="auth-card">
         <div className="page-header">
-          <h1>Habitat Bank Operations</h1>
+          <img src="/cosdon-logo-light.png" alt="Cosdon Consulting" />
           <p>{mode === 'sign-in' ? 'Sign in to your organisation.' : 'Set up a new organisation.'}</p>
         </div>
 

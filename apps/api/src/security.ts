@@ -51,8 +51,7 @@ async function securityPlugin(app: FastifyInstance): Promise<void> {
     const origin = request.headers.origin;
     if (!origin) return;
 
-    const allowed = new Set([config.webOrigin, `http://127.0.0.1:${config.port}`, `http://localhost:${config.port}`]);
-    if (!allowed.has(origin)) {
+    if (!config.allowedOrigins.includes(origin)) {
       request.log.warn({ origin, url: request.url }, 'Rejected cross-origin state-changing request');
       await reply.code(403).send({ error: 'Request rejected: unrecognised origin.' });
     }

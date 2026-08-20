@@ -157,7 +157,7 @@ export function AllocationTable({ solution, rows, onChange, disabled }: Allocati
         )}
       </div>
 
-      <div className={meets ? 'banner' : 'banner warning'} style={meets ? { background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}>
+      <div className={meets ? 'banner' : 'banner warning'}>
         <strong>
           {delivered.toString()} of {target.toString()} units{' '}
           {meets ? 'delivered — target met' : `delivered — ${shortBy.toString()} short`}
@@ -168,7 +168,7 @@ export function AllocationTable({ solution, rows, onChange, disabled }: Allocati
               style={{
                 width: `${progress}%`,
                 height: '100%',
-                background: meets ? 'var(--accent)' : 'var(--warning-text)',
+                background: meets ? 'var(--brand)' : 'var(--warning-text)',
               }}
             />
           </div>

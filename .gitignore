@@ -7,3 +7,7 @@ build/
 coverage/
 .DS_Store
 uploads/
+
+# Screenshot output from scripts/smoke-ui.mjs
+*.png
+!apps/web/public/**/*.png

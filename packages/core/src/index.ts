@@ -4,3 +4,4 @@ export * from './money.js';
 export * from './distinctiveness.js';
 export * from './trading-rules.js';
 export * from './spatial-multiplier.js';
+export * from "./solver.js";

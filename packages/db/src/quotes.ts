@@ -46,6 +46,9 @@ export interface Quote {
   organisationId: string;
   reference: string;
   developerId: string;
+  /** The operator whose stock this quote supplies, and whose branding it carries. */
+  bankOperatorId: string | null;
+  bankOperatorName: string | null;
   developerMetricId: string | null;
   status: QuoteStatus;
   priority: QuotePriority;
@@ -72,6 +75,8 @@ interface QuoteRow {
   organisation_id: string;
   reference: string;
   developer_id: string;
+  bank_operator_id: string | null;
+  bank_operator_name?: string | null;
   developer_metric_id: string | null;
   status: QuoteStatus;
   priority: QuotePriority;
@@ -161,6 +166,8 @@ function toQuote(
     organisationId: row.organisation_id,
     reference: row.reference,
     developerId: row.developer_id,
+    bankOperatorId: row.bank_operator_id,
+    bankOperatorName: row.bank_operator_name ?? null,
     developerMetricId: row.developer_metric_id,
     status: row.status,
     priority: row.priority,
@@ -274,7 +281,13 @@ export async function getQuote(
   quoteId: string,
   staleAfterDays = 60,
 ): Promise<Quote | null> {
-  const { rows } = await db.query<QuoteRow>('SELECT * FROM quote WHERE id = $1', [quoteId]);
+  const { rows } = await db.query<QuoteRow>(
+    `SELECT q.*, o.name AS bank_operator_name
+       FROM quote q
+       LEFT JOIN bank_operator o ON o.id = q.bank_operator_id
+      WHERE q.id = $1`,
+    [quoteId],
+  );
   const row = rows[0];
   if (!row) return null;
 
@@ -293,6 +306,8 @@ export interface QuoteSummary {
   reference: string;
   developerId: string;
   developerName: string;
+  bankOperatorId: string | null;
+  bankOperatorName: string | null;
   status: QuoteStatus;
   priority: QuotePriority;
   totalPrice: Money;
@@ -304,7 +319,12 @@ export interface QuoteSummary {
 
 export async function listQuotes(
   db: Queryable,
-  options: { status?: QuoteStatus; developerId?: string; staleAfterDays?: number } = {},
+  options: {
+    status?: QuoteStatus;
+    developerId?: string;
+    bankOperatorId?: string;
+    staleAfterDays?: number;
+  } = {},
 ): Promise<QuoteSummary[]> {
   const staleAfterDays = options.staleAfterDays ?? 60;
   const conditions: string[] = [];
@@ -318,15 +338,20 @@ export async function listQuotes(
     params.push(options.developerId);
     conditions.push(`q.developer_id = $${params.length}`);
   }
+  if (options.bankOperatorId) {
+    params.push(options.bankOperatorId);
+    conditions.push(`q.bank_operator_id = $${params.length}`);
+  }
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await db.query<
     QuoteRow & { developer_name: string; line_count: string }
   >(
-    `SELECT q.*, d.purchasing_entity_name AS developer_name,
+    `SELECT q.*, d.purchasing_entity_name AS developer_name, o.name AS bank_operator_name,
             (SELECT count(*) FROM allocation_line l WHERE l.quote_id = q.id) AS line_count
        FROM quote q
        JOIN developer d ON d.id = q.developer_id
+       LEFT JOIN bank_operator o ON o.id = q.bank_operator_id
        ${where}
       ORDER BY q.created_at DESC`,
     params,
@@ -337,6 +362,8 @@ export async function listQuotes(
     reference: row.reference,
     developerId: row.developer_id,
     developerName: row.developer_name,
+    bankOperatorId: row.bank_operator_id,
+    bankOperatorName: row.bank_operator_name ?? null,
     status: row.status,
     priority: row.priority,
     totalPrice: Money.of(row.total_price),
@@ -354,6 +381,8 @@ export async function listQuotes(
 export interface CreateQuoteInput {
   organisationId: string;
   developerId: string;
+  /** Whose stock this quote draws on. Chosen up front, not inferred later. */
+  bankOperatorId: string;
   developerMetricId?: string | null | undefined;
   priority?: QuotePriority | undefined;
   notes?: string | null | undefined;
@@ -374,14 +403,16 @@ export async function createDraftQuote(db: Queryable, input: CreateQuoteInput): 
 
   const { rows } = await db.query<{ id: string }>(
     `INSERT INTO quote (organisation_id, reference, developer_id, developer_metric_id,
-                        status, priority, spatial_scheme_id, buffer_percent, notes, created_by)
-     VALUES ($1,$2,$3,$4,'draft',$5,$6,$7,$8,$9)
+                        bank_operator_id, status, priority, spatial_scheme_id, buffer_percent,
+                        notes, created_by)
+     VALUES ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10)
      RETURNING id`,
     [
       input.organisationId,
       reference,
       input.developerId,
       input.developerMetricId ?? null,
+      input.bankOperatorId,
       input.priority ?? 'medium',
       input.spatialSchemeId,
       input.bufferPercent,

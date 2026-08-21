@@ -36,6 +36,13 @@ const solveSchema = z.object({
   /** Optionally scope to one site rather than searching every bank (§4.3.1). */
   siteId: z.string().uuid().optional(),
   /**
+   * Scope to one operator's stock.
+   *
+   * A quote supplies one operator, so the allocation table passes the quote's
+   * own operator here and never offers stock the quote could not use.
+   */
+  bankOperatorId: z.string().uuid().optional(),
+  /**
    * LPAs adjacent to the development's own. Adjacency is reference data this
    * platform does not hold, so the caller supplies it; without it, a bank in a
    * different LPA is treated as outside.
@@ -65,6 +72,7 @@ export default async function solverRoutes(app: FastifyInstance): Promise<void> 
       const stock = await getSolverStock(tx, {
         module: body.module,
         ...(body.siteId ? { siteId: body.siteId } : {}),
+        ...(body.bankOperatorId ? { bankOperatorId: body.bankOperatorId } : {}),
       });
 
       const options: SolverStockOption[] = stock.map((row) => ({

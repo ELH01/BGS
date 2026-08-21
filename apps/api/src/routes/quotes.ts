@@ -45,6 +45,14 @@ const spatialBand = z.enum(['same-lpa', 'neighbouring-lpa-same-nca', 'outside'])
 
 const createSchema = z.object({
   developerId: z.string().uuid(),
+  /**
+   * Whose stock this quote draws on.
+   *
+   * Named up front rather than inferred from whatever gets allocated: the
+   * document goes out under this operator's name and branding, and a quote
+   * cannot sensibly claim to come from two.
+   */
+  bankOperatorId: z.string().uuid(),
   developerMetricId: z.string().uuid().nullish(),
   priority: z.enum(['high', 'medium', 'low']).default('medium'),
   notes: z.string().trim().max(5000).nullish(),
@@ -100,7 +108,7 @@ export default async function quoteRoutes(app: FastifyInstance): Promise<void> {
     soldDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
   });
 
-  app.get<{ Querystring: { status?: string; developerId?: string } }>(
+  app.get<{ Querystring: { status?: string; developerId?: string; bankOperatorId?: string } }>(
     '/api/quotes',
     { onRequest: [app.requireAuth] },
     async (request) => {
@@ -109,6 +117,7 @@ export default async function quoteRoutes(app: FastifyInstance): Promise<void> {
         listQuotes(tx, {
           ...(request.query.status ? { status: request.query.status as never } : {}),
           ...(request.query.developerId ? { developerId: request.query.developerId } : {}),
+          ...(request.query.bankOperatorId ? { bankOperatorId: request.query.bankOperatorId } : {}),
           staleAfterDays: config.staleQuoteDays,
         }),
       );
@@ -159,6 +168,7 @@ export default async function quoteRoutes(app: FastifyInstance): Promise<void> {
       createDraftQuote(tx, {
         organisationId: auth.organisationId,
         developerId: body.developerId,
+        bankOperatorId: body.bankOperatorId,
         developerMetricId: body.developerMetricId ?? null,
         priority: body.priority,
         notes: body.notes ?? null,
@@ -198,6 +208,28 @@ export default async function quoteRoutes(app: FastifyInstance): Promise<void> {
         }
         if (quote.status === 'cancelled') {
           return { error: 'cancelled' as const };
+        }
+
+        // Every line must draw on the operator this quote is for. Without this
+        // a quote could quietly end up straddling two operators again, and the
+        // document would have to claim to come from both.
+        if (body.lines.length > 0 && quote.bankOperatorId) {
+          const { rows: foreign } = await tx.query<{ parcel_reference: string; operator: string }>(
+            `SELECT p.parcel_reference, o.name AS operator
+               FROM stock_parcel p
+               JOIN habitat_bank_site s ON s.id = p.site_id
+               JOIN bank_operator o ON o.id = s.bank_operator_id
+              WHERE p.id = ANY($1::uuid[]) AND s.bank_operator_id <> $2`,
+            [body.lines.map((line) => line.stockParcelId), quote.bankOperatorId],
+          );
+
+          if (foreign.length > 0) {
+            return {
+              error: 'foreign-parcel' as const,
+              operatorName: quote.bankOperatorName,
+              detail: foreign.map((row) => `${row.parcel_reference} belongs to ${row.operator}`).join('; '),
+            };
+          }
         }
 
         const lines: AllocationLineInput[] = body.lines.map((line) => {
@@ -250,6 +282,13 @@ export default async function quoteRoutes(app: FastifyInstance): Promise<void> {
 
       if ('error' in result) {
         if (result.error === 'not-found') return reply.code(404).send({ error: 'Quote not found.' });
+        if (result.error === 'foreign-parcel') {
+          return reply.code(409).send({
+            error:
+              `This quote supplies ${quoteOperatorName(result) ?? 'one operator'}, so it cannot draw on ` +
+              `stock from another: ${result.detail}. Raise a separate quote for that operator's stock.`,
+          });
+        }
         if (result.error === 'sold') {
           return reply.code(409).send({
             error: 'This quote has been sold. Reverse the sale before changing its allocation.',
@@ -262,6 +301,11 @@ export default async function quoteRoutes(app: FastifyInstance): Promise<void> {
       return { quote: result.quote, targetStatus: summariseTargets(result.quote) };
     },
   );
+
+  /** Operator name from a failed allocation save, for the message. */
+  function quoteOperatorName(result: { operatorName?: string | null }): string | null {
+    return result.operatorName ?? null;
+  }
 
   /** How each module stands against its buffered target, for the live running total. */
   function summariseTargets(quote: NonNullable<Awaited<ReturnType<typeof getQuote>>>) {

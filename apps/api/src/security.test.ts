@@ -64,6 +64,7 @@ beforeAll(async () => {
 
   const quote = await call('POST', '/api/quotes', {
     developerId: developer.json().developer.id,
+    bankOperatorId: operator.json().bankOperator.id,
     targets: [{ module: 'area', source: 'manual', requiredUnits: '5.0' }],
   });
   quoteId = quote.json().quote.id;
@@ -112,7 +113,7 @@ describe('cross-site request forgery', () => {
     const response = await call(
       'POST',
       '/api/quotes',
-      { developerId: '00000000-0000-0000-0000-000000000000', targets: [] },
+      { developerId: '00000000-0000-0000-0000-000000000000', bankOperatorId: '00000000-0000-0000-0000-000000000000', targets: [] },
       { origin: 'https://evil.example' },
     );
     expect(response.statusCode).toBe(403);

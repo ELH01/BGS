@@ -28,6 +28,8 @@ const json = async (method: 'GET' | 'POST' | 'PUT', url: string, payload?: unkno
 };
 
 let siteId: string;
+let operatorId: string;
+let secondOperatorId: string;
 let secondOperatorSiteId: string;
 let developerId: string;
 let quoteId: string;
@@ -68,7 +70,7 @@ beforeAll(async () => {
     },
   });
   const site = await json('POST', '/api/sites', {
-    bankOperatorId: operator.body.bankOperator.id,
+    bankOperatorId: (operatorId = operator.body.bankOperator.id),
     name: 'Home Farm',
     lpaCode: 'E07000040',
     ncaCode: 'NCA148',
@@ -77,7 +79,7 @@ beforeAll(async () => {
 
   const other = await json('POST', '/api/bank-operators', { name: 'Second Operator' });
   const otherSite = await json('POST', '/api/sites', {
-    bankOperatorId: other.body.bankOperator.id,
+    bankOperatorId: (secondOperatorId = other.body.bankOperator.id),
     name: 'Other Farm',
     lpaCode: 'E07000040',
     ncaCode: 'NCA148',
@@ -110,6 +112,7 @@ beforeAll(async () => {
 
   const quote = await json('POST', '/api/quotes', {
     developerId,
+    bankOperatorId: operatorId,
     targets: [{ module: 'area', source: 'manual', requiredUnits: '5.0' }],
   });
   quoteId = quote.body.quote.id;
@@ -200,6 +203,7 @@ describe('the quote document (§4.7)', () => {
   it('refuses to export a quote with no allocation', async () => {
     const empty = await json('POST', '/api/quotes', {
       developerId,
+      bankOperatorId: operatorId,
       targets: [{ module: 'area', source: 'manual', requiredUnits: '1.0' }],
     });
     const response = await json('GET', `/api/quotes/${empty.body.quote.id}/document`);
@@ -230,7 +234,7 @@ describe('document preview warnings', () => {
     expect(response.body.filename).toBe('Quote-CC-0001.docx');
   });
 
-  it('warns when a quote spans more than one bank operator', async () => {
+  it('refuses to let a quote draw on another operator’s stock', async () => {
     const secondParcel = await json('POST', '/api/stock-parcels', {
       siteId: secondOperatorSiteId,
       parcelReference: 'S1',
@@ -244,9 +248,13 @@ describe('document preview warnings', () => {
 
     const mixed = await json('POST', '/api/quotes', {
       developerId,
+      bankOperatorId: operatorId,
       targets: [{ module: 'area', source: 'manual', requiredUnits: '5.0' }],
     });
-    await json('PUT', `/api/quotes/${mixed.body.quote.id}/allocation`, {
+
+    // The second parcel belongs to another operator, so the quote cannot use
+    // it: a document cannot carry two operators' identities at once.
+    const response = await json('PUT', `/api/quotes/${mixed.body.quote.id}/allocation`, {
       lines: [
         {
           stockParcelId: parcelId,
@@ -265,16 +273,15 @@ describe('document preview warnings', () => {
       ],
     });
 
-    const response = await json('GET', `/api/quotes/${mixed.body.quote.id}/document-preview`);
-    expect(response.body.operatorCount).toBe(2);
-    // Branded by whoever supplies the most units.
-    expect(response.body.brandingOperator.name).toBe('Cosdon Habitat Banks');
-    expect(response.body.warnings.some((w: string) => /draws on 2 bank operators/.test(w))).toBe(true);
+    expect(response.status).toBe(409);
+    expect(response.body.error).toMatch(/cannot draw on stock from another/);
+    expect(response.body.error).toMatch(/S1 belongs to Second Operator/);
   });
 
   it('warns when the branding operator has none set', async () => {
     const bare = await json('POST', '/api/quotes', {
       developerId,
+      bankOperatorId: secondOperatorId,
       targets: [{ module: 'area', source: 'manual', requiredUnits: '1.0' }],
     });
     const parcel = await json('POST', '/api/stock-parcels', {

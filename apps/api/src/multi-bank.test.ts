@@ -143,6 +143,7 @@ describe('several banks under one account', () => {
     for (const quantity of ['7.0', '6.0']) {
       const quote = await call('POST', '/api/quotes', {
         developerId: developer.body.developer.id,
+        bankOperatorId: banks['Exe Valley Bank']!.operatorId,
         targets: [{ module: 'area', source: 'manual', requiredUnits: '5.0' }],
       });
       await app.inject({

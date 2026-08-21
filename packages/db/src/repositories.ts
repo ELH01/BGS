@@ -682,13 +682,19 @@ export interface SolverStockRow {
 
 export async function getSolverStock(
   db: Queryable,
-  options: { module: MetricModule; siteId?: string },
+  options: { module: MetricModule; siteId?: string; bankOperatorId?: string },
 ): Promise<SolverStockRow[]> {
   const params: string[] = [options.module];
   let where = 'p.module = $1';
   if (options.siteId) {
     params.push(options.siteId);
     where += ` AND p.site_id = $${params.length}`;
+  }
+  // A quote supplies one operator, so the table only offers that operator's
+  // stock — across every site it holds.
+  if (options.bankOperatorId) {
+    params.push(options.bankOperatorId);
+    where += ` AND s.bank_operator_id = $${params.length}`;
   }
 
   const { rows } = await db.query<{

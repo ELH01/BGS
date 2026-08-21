@@ -273,6 +273,8 @@ export interface Quote {
   id: string;
   reference: string;
   developerId: string;
+  bankOperatorId: string | null;
+  bankOperatorName: string | null;
   developerMetricId: string | null;
   status: QuoteStatus;
   priority: QuotePriority;
@@ -292,6 +294,8 @@ export interface QuoteSummary {
   reference: string;
   developerId: string;
   developerName: string;
+  bankOperatorId: string | null;
+  bankOperatorName: string | null;
   status: QuoteStatus;
   priority: QuotePriority;
   totalPrice: string;

@@ -91,15 +91,18 @@ await step('add a developer', async () => {
   await page.waitForSelector('strong:has-text("Barratt Homes plc")');
 });
 
-await step('create a quote needing 5 area units', async () => {
+await step('create a quote needing 5 area units, naming the supplying bank', async () => {
   await page.getByRole('link', { name: 'Quotes' }).click();
   await page.getByRole('button', { name: 'New quote' }).click();
+  // A quote supplies one operator, chosen here rather than inferred later.
+  await page.selectOption('select[name="bankOperatorId"]', { label: 'Cosdon Habitat Banks' });
   await page.fill('input[name="required-area"]', '5.0');
   await page.fill('input[name="broad-area"]', 'Grassland');
   await page.fill('input[name="type-area"]', 'Other neutral grassland');
   await page.selectOption('select[name="dist-area"]', 'medium');
   await page.getByRole('button', { name: 'Create and build allocation' }).click();
   await page.waitForSelector('h2:has-text("Area habitat")');
+  await page.waitForSelector('text=/supplied by Cosdon Habitat Banks/');
 });
 
 await step('table shows the buffered target, not the bare shortfall', async () => {

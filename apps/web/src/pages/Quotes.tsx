@@ -6,6 +6,7 @@ import {
   QUOTE_STATUS_LABEL,
   api,
   formatMoney,
+  type BankOperator,
   type Developer,
   type DistinctivenessBand,
   type MetricModule,
@@ -27,6 +28,7 @@ export default function Quotes(): ReactNode {
   const navigate = useNavigate();
   const [quotes, setQuotes] = useState<QuoteSummary[]>([]);
   const [developers, setDevelopers] = useState<Developer[]>([]);
+  const [operators, setOperators] = useState<BankOperator[]>([]);
   const [staleAfterDays, setStaleAfterDays] = useState(60);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -34,13 +36,15 @@ export default function Quotes(): ReactNode {
 
   async function load(): Promise<void> {
     try {
-      const [quoteResponse, developerResponse] = await Promise.all([
+      const [quoteResponse, developerResponse, operatorResponse] = await Promise.all([
         api.get<{ quotes: QuoteSummary[]; staleAfterDays: number }>('/api/quotes'),
         api.get<{ developers: Developer[] }>('/api/developers'),
+        api.get<{ bankOperators: BankOperator[] }>('/api/bank-operators'),
       ]);
       setQuotes(quoteResponse.quotes);
       setStaleAfterDays(quoteResponse.staleAfterDays);
       setDevelopers(developerResponse.developers);
+      setOperators(operatorResponse.bankOperators);
     } catch (caught) {
       setError(caught);
     }
@@ -88,6 +92,7 @@ export default function Quotes(): ReactNode {
     try {
       const { quote } = await api.post<{ quote: Quote }>('/api/quotes', {
         developerId: String(form.get('developerId')),
+        bankOperatorId: String(form.get('bankOperatorId')),
         priority: String(form.get('priority') || 'medium'),
         targets,
       });
@@ -105,7 +110,9 @@ export default function Quotes(): ReactNode {
           <h1>Quotes</h1>
           <p>A quote is soft until reserved. Nothing leaves draft until every module clears its target.</p>
         </div>
-        {!creating && developers.length > 0 && <button onClick={() => setCreating(true)}>New quote</button>}
+        {!creating && developers.length > 0 && operators.length > 0 && (
+          <button onClick={() => setCreating(true)}>New quote</button>
+        )}
       </div>
 
       <ErrorBanner error={error} />
@@ -117,16 +124,37 @@ export default function Quotes(): ReactNode {
         </div>
       )}
 
+      {operators.length === 0 && (
+        <div className="banner warning">
+          <strong>No bank operators yet.</strong>
+          A quote supplies one operator&rsquo;s stock and carries their branding, so{' '}
+          <Link to="/operators">add an operator</Link> first.
+        </div>
+      )}
+
       {creating && (
         <div className="card">
           <h2>New quote</h2>
           <p className="hint" style={{ marginTop: '-0.5rem' }}>
-            Enter the units required per module. Leave a module blank if the development has no shortfall
-            there — the three are separate problems and are never combined.
+            A quote supplies one bank&rsquo;s stock — across as many of its sites as you like — and goes out
+            under that operator&rsquo;s branding. Enter the units required per module; leave a module blank if
+            the development has no shortfall there, since the three are separate problems and never combine.
           </p>
 
           <form onSubmit={create}>
             <div className="field-row">
+              <Field
+                label="Supplying bank"
+                hint="whose stock, and whose branding on the document"
+              >
+                <select name="bankOperatorId" required defaultValue={operators[0]?.id}>
+                  {operators.map((operator) => (
+                    <option key={operator.id} value={operator.id}>
+                      {operator.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="Purchaser">
                 <select name="developerId" required defaultValue={developers[0]?.id}>
                   {developers.map((developer) => (
@@ -203,6 +231,7 @@ export default function Quotes(): ReactNode {
                 <tr>
                   <th>Reference</th>
                   <th>Purchaser</th>
+                  <th>Supplying bank</th>
                   <th>Status</th>
                   <th>Priority</th>
                   <th className="numeric">Lines</th>
@@ -219,6 +248,7 @@ export default function Quotes(): ReactNode {
                       </Link>
                     </td>
                     <td>{quote.developerName}</td>
+                    <td>{quote.bankOperatorName ?? <span className="hint">not set</span>}</td>
                     <td>{statusBadge(quote)}</td>
                     <td>{quote.priority}</td>
                     <td className="numeric">{quote.lineCount}</td>

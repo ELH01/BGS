@@ -65,6 +65,9 @@ export default function QuoteDetail(): ReactNode {
           module: target.module,
           requiredUnits: target.requiredUnits,
           developerId: response.quote.developerId,
+          // Only this quote's own operator: it supplies one bank, so offering
+          // stock from another would be offering something it cannot use.
+          ...(response.quote.bankOperatorId ? { bankOperatorId: response.quote.bankOperatorId } : {}),
           shortfall:
             target.shortfallBroadHabitat && target.shortfallHabitatType && target.shortfallDistinctiveness
               ? {
@@ -235,8 +238,9 @@ export default function QuoteDetail(): ReactNode {
             {quote.isStale && <span className="badge over"> stale</span>}
           </h1>
           <p>
-            {developer?.purchasingEntityName ?? '—'} · {formatMoney(quote.totalPrice)} ·{' '}
-            <Link to="/quotes">back to quotes</Link>
+            {developer?.purchasingEntityName ?? '—'}
+            {quote.bankOperatorName && <> · supplied by {quote.bankOperatorName}</>} ·{' '}
+            {formatMoney(quote.totalPrice)} · <Link to="/quotes">back to quotes</Link>
           </p>
         </div>
       </div>

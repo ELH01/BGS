@@ -33,6 +33,7 @@ class Client {
 let client: Client;
 let siteId: string;
 let developerId: string;
+let bankOperatorId: string;
 let counter = 0;
 
 /** A parcel with 10 area units available, near the development. */
@@ -57,6 +58,7 @@ async function makeParcel(units = '10.0'): Promise<string> {
 async function makeQuote(required = '5.0'): Promise<string> {
   const response = await client.post('/api/quotes', {
     developerId,
+    bankOperatorId,
     targets: [{ module: 'area', source: 'manual', requiredUnits: required }],
   });
   expect(response.status).toBe(201);
@@ -94,8 +96,9 @@ beforeAll(async () => {
   });
 
   const operator = await client.post('/api/bank-operators', { name: 'Test Banks' });
+  bankOperatorId = operator.body.bankOperator.id;
   const site = await client.post('/api/sites', {
-    bankOperatorId: operator.body.bankOperator.id,
+    bankOperatorId,
     name: 'Test Site',
     lpaCode: 'E07000040',
     ncaCode: 'NCA148',
@@ -119,6 +122,7 @@ describe('quote creation (§3.7, §4.4)', () => {
   it('issues a human-readable reference from the organisation’s own series', async () => {
     const response = await client.post('/api/quotes', {
       developerId,
+      bankOperatorId,
       targets: [{ module: 'area', source: 'manual', requiredUnits: '5.0' }],
     });
     expect(response.status).toBe(201);

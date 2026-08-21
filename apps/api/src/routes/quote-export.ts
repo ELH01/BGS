@@ -61,13 +61,16 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
         return reply.code(409).send({ error: 'This quote has no allocation lines, so there is nothing to quote for.' });
       }
 
-      // Branding belongs to the operator whose stock is being sold. Where a
-      // quote draws on more than one, the one supplying the most units brands
-      // it and the caller is told, since a document carrying one operator's
-      // identity while selling another's stock would mislead the purchaser.
-      const operator = source.operators[0];
+      // Branding is the operator the quote was raised for. No inference and no
+      // tie-break: a quote supplies one operator, chosen when it was created,
+      // and the allocation table will not let it draw on anyone else's stock.
+      const operator = source.operators.find((candidate) => candidate.id === source.quote.bankOperatorId);
       if (!operator) {
-        return reply.code(409).send({ error: 'Could not determine which bank operator this quote draws on.' });
+        return reply.code(409).send({
+          error:
+            'This quote has no supplying bank operator recorded, so the document has no branding to carry. ' +
+            'Set one on the quote before exporting.',
+        });
       }
 
       const detailsByLine = new Map(source.lineDetails.map((detail) => [detail.allocationLineId, detail]));
@@ -166,14 +169,12 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
       if (source.quote.lines.length === 0) {
         warnings.push('This quote has no allocation lines yet.');
       }
-      if (source.operators.length > 1) {
+      if (!source.quote.bankOperatorId) {
         warnings.push(
-          `This quote draws on ${source.operators.length} bank operators. It will be branded as ` +
-            `${source.operators[0]?.name}, which supplies the most units. Consider splitting it if the ` +
-            'purchaser should see each operator separately.',
+          'This quote has no supplying bank operator recorded, so there is no branding for the document to carry.',
         );
       }
-      const operator = source.operators[0];
+      const operator = source.operators.find((candidate) => candidate.id === source.quote.bankOperatorId);
       if (operator && !operator.brandingCompanyName && !operator.brandingAddress) {
         warnings.push(
           `${operator.name} has no quote branding set, so the document will show only its name. Add an address and contact details on the bank operator.`,

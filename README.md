@@ -18,9 +18,30 @@ Electron desktop build for three reasons:
 - Electron's ongoing cost is not the build, it is code signing, notarisation
   and auto-update.
 
+## Starting it day to day
+
+Double-click **Start BGS.command** (macOS) or **Start BGS.bat** (Windows).
+
+The launcher brings up the database, applies any pending schema updates, starts
+the API and web client, waits until the client actually answers, and opens the
+browser at http://localhost:5173. On first run it also creates `.env` with a
+generated session secret and installs dependencies.
+
+Keep the window it opens while you work — closing it, or pressing Ctrl+C, stops
+the application. The database is deliberately left running, because it holds no
+session state and stopping it only makes the next start slower; run
+`docker compose down` if you want the container gone too.
+
+If `DATABASE_URL` already points at a Postgres that is running, the launcher
+uses it and skips Docker entirely.
+
+When something goes wrong it says what to do about it rather than printing a
+stack trace, and writes the full output to `logs/launch.log`.
+
 ## Getting started
 
-Requires Node 20+ and either Docker or a local Postgres 16.
+Requires Node 20+ and either Docker or a local Postgres 16. The launcher above
+does all of this for you; these are the equivalent steps by hand.
 
 ```bash
 pnpm install

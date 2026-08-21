@@ -35,6 +35,8 @@ export default function Exposure(): ReactNode {
   const [pool, setPool] = useState<PoolEntry[]>([]);
   const [banks, setBanks] = useState<BankRollUp[]>([]);
   const [error, setError] = useState<unknown>(null);
+  // Empty means the default: everything except cancelled.
+  const [exportStatuses, setExportStatuses] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -65,12 +67,37 @@ export default function Exposure(): ReactNode {
 
   return (
     <>
-      <div className="page-header">
-        <h1>Stock exposure</h1>
-        <p>
-          A quote is soft: it marks units as exposed but does not reduce what is available. A reservation
-          is firm, and does.
-        </p>
+      <div className="page-header spread">
+        <div>
+          <h1>Stock exposure</h1>
+          <p>
+            A quote is soft: it marks units as exposed but does not reduce what is available. A reservation
+            is firm, and does.
+          </p>
+        </div>
+        <div className="row">
+          <select
+            value={exportStatuses}
+            onChange={(event) => setExportStatuses(event.target.value)}
+            style={{ width: 'auto' }}
+            aria-label="Statuses to export"
+          >
+            <option value="">Live positions</option>
+            <option value="quoted,reserved">Quoted and reserved only</option>
+            <option value="reserved">Reserved only</option>
+            <option value="sold">Sold only</option>
+            <option value="draft,quoted,reserved,sold,cancelled">Everything, including cancelled</option>
+          </select>
+          <a
+            className="button-link"
+            href={`/api/positions/export?${new URLSearchParams({
+              ...(bankOperatorId ? { bankOperatorId } : {}),
+              ...(exportStatuses ? { statuses: exportStatuses } : {}),
+            }).toString()}`}
+          >
+            Export positions
+          </a>
+        </div>
       </div>
 
       <ErrorBanner error={error} />

@@ -233,6 +233,38 @@ documents. This section is the application's own identity, which is Cosdon's.
 A quote drawn from a third party's stock carries *their* branding, taken from
 the bank operator record — see §3.1.
 
+## A quote supplies one bank
+
+A quotation goes out under the operator whose stock it draws on — their name,
+their branding, their units. That operator may hold several sites and a quote
+may draw from any of them, but it does not straddle two, because the document
+would have to claim to come from both.
+
+The supplying operator is chosen when the quote is created. Everything else
+follows: the allocation table offers only that operator's stock, saving a line
+that reaches another operator's parcel is refused by name, and the document's
+branding is read straight off the quote with nothing to infer.
+
+## Exporting the position
+
+`Export positions` on the exposure screen downloads a spreadsheet of the
+commercial picture, filterable by bank and by status. Three sheets, because
+there are three questions and they want different shapes:
+
+| Sheet | Answers |
+|---|---|
+| Allocations | What have I committed, from which parcel, to whom, at what price |
+| Quotes | Which deals are live, what are they worth, when do they expire |
+| Stock position | How much is left to sell, and where am I over-quoted |
+
+A cover sheet records when the export was taken and what it was filtered to, so
+a file found on a drive months later is not mistaken for the whole picture.
+
+Quantities are written as numbers at each module's own precision, so the sheet
+sorts and totals properly. That conversion is the one place the platform's exact
+decimals become floats; it is deliberate, one-way, and safe at these
+magnitudes — nothing is ever read back from the file.
+
 ## Running several habitat banks
 
 A bank operator holds sites, and sites hold parcels, so more than one bank sits

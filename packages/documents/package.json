@@ -15,7 +15,8 @@
   "dependencies": {
     "@bgs/core": "workspace:*",
     "decimal.js": "^10.4.3",
-    "docx": "^9.0.3"
+    "docx": "^9.0.3",
+    "exceljs": "^4.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

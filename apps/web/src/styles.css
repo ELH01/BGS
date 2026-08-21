@@ -153,7 +153,22 @@ a { color: var(--brand); }
   font-size: 0.82rem;
   color: rgba(250, 249, 241, 0.62);
 }
-.sidebar .footer button.link { color: var(--rocks); }
+.sidebar .footer /* A download must be a real link, not a button, so it gets the button's look. */
+.button-link {
+  display: inline-block;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.45rem 0.95rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: var(--rocks);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.button-link:hover { background: var(--brand-hover); border-color: var(--brand-hover); color: var(--rocks); }
+
+button.link { color: var(--rocks); }
 
 .main { flex: 1; padding: 1.75rem 2rem 4rem; max-width: 1240px; }
 .page-header { margin-bottom: 1.25rem; }
@@ -219,6 +234,21 @@ button.secondary {
   border-color: var(--border);
 }
 button.secondary:hover { background: var(--rocks); border-color: var(--brand); }
+/* A download must be a real link, not a button, so it gets the button's look. */
+.button-link {
+  display: inline-block;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.45rem 0.95rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: var(--rocks);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.button-link:hover { background: var(--brand-hover); border-color: var(--brand-hover); color: var(--rocks); }
+
 button.link {
   background: none;
   border: none;
@@ -274,4 +304,19 @@ button.link:hover { background: none; color: var(--brand-hover); }
 .auth-card .page-header { text-align: center; }
 .auth-card .page-header img { width: 210px; height: auto; margin: 0 auto 1rem; display: block; }
 .auth-card .page-header p { color: rgba(250, 249, 241, 0.82); }
-.auth-card > div[style] button.link { color: var(--rocks); }
+.auth-card > div[style] /* A download must be a real link, not a button, so it gets the button's look. */
+.button-link {
+  display: inline-block;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.45rem 0.95rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: var(--rocks);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.button-link:hover { background: var(--brand-hover); border-color: var(--brand-hover); color: var(--rocks); }
+
+button.link { color: var(--rocks); }

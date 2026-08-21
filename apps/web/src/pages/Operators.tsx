@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, type BankOperator } from '../api';
 import { Empty, ErrorBanner, Field } from '../components/common';
 import { useSession } from '../session';
@@ -9,11 +9,59 @@ export default function Operators(): ReactNode {
   const [editing, setEditing] = useState<BankOperator | 'new' | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const logoInput = useRef<HTMLInputElement>(null);
+  // Bumped after an upload so the browser refetches rather than showing the
+  // cached previous logo.
+  const [logoVersion, setLogoVersion] = useState(0);
+
+  async function uploadLogo(operatorId: string, file: File): Promise<void> {
+    setError(null);
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch(`/api/bank-operators/${operatorId}/logo`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error ?? 'The logo could not be uploaded.');
+      }
+      setLogoVersion((version) => version + 1);
+      await load();
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeLogo(operatorId: string): Promise<void> {
+    setError(null);
+    try {
+      await api.delete(`/api/bank-operators/${operatorId}/logo`);
+      setLogoVersion((version) => version + 1);
+      await load();
+    } catch (caught) {
+      setError(caught);
+    }
+  }
 
   async function load(): Promise<void> {
     try {
       const { bankOperators } = await api.get<{ bankOperators: BankOperator[] }>('/api/bank-operators');
       setOperators(bankOperators);
+
+      // Keep an open editor in step with what was just saved. Without this the
+      // form goes on showing the operator as it was when it was opened, so an
+      // uploaded logo appears not to have arrived.
+      setEditing((current) =>
+        current && current !== 'new'
+          ? bankOperators.find((operator) => operator.id === current.id) ?? current
+          : current,
+      );
     } catch (caught) {
       setError(caught);
     }
@@ -143,6 +191,49 @@ export default function Operators(): ReactNode {
                 defaultValue={editing === 'new' ? '' : editing.branding.address ?? ''}
               />
             </Field>
+
+            {editing !== 'new' && (
+              <Field label="Logo" hint="appears at the top of this operator’s quote documents">
+                <div className="row" style={{ alignItems: 'flex-start' }}>
+                  {editing.branding.logoFileId ? (
+                    <img
+                      src={`/api/bank-operators/${editing.id}/logo?v=${logoVersion}`}
+                      alt={`${editing.name} logo`}
+                      style={{
+                        maxHeight: 64,
+                        maxWidth: 200,
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius)',
+                        padding: 4,
+                        background: '#fff',
+                      }}
+                    />
+                  ) : (
+                    <span className="hint">No logo uploaded — the document will be text only.</span>
+                  )}
+                  <input
+                    ref={logoInput}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/bmp"
+                    style={{ width: 'auto' }}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadLogo(editing.id, file);
+                      event.target.value = '';
+                    }}
+                  />
+                  {editing.branding.logoFileId && (
+                    <button type="button" className="link" onClick={() => void removeLogo(editing.id)}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </Field>
+            )}
+
+            {editing === 'new' && (
+              <p className="hint">Save the operator first, then reopen it to upload a logo.</p>
+            )}
 
             <Field label="Contact details on quotes">
               <textarea

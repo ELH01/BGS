@@ -17,6 +17,15 @@ import {
 import { AllocationTable, type AllocationRowState } from '../components/AllocationTable';
 import { ErrorBanner, Field } from '../components/common';
 
+/** Whether this quote's allocation can be written into the developer's metric. */
+interface MetricExportPreview {
+  ready: boolean;
+  blockers: string[];
+  workbook: { filename: string; byteSize: number; metricVersion: string | null } | null;
+  modules: string[];
+  lineCount: number;
+}
+
 type RowsByModule = Partial<Record<MetricModule, Record<string, AllocationRowState>>>;
 
 export default function QuoteDetail(): ReactNode {
@@ -31,6 +40,7 @@ export default function QuoteDetail(): ReactNode {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [preview, setPreview] = useState<DocumentPreview | null>(null);
+  const [metricExport, setMetricExport] = useState<MetricExportPreview | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -86,6 +96,15 @@ export default function QuoteDetail(): ReactNode {
         setPreview(await api.get<DocumentPreview>(`/api/quotes/${id}/document-preview`));
       } catch {
         setPreview(null);
+      }
+
+      // And whether the allocation can be written back into the developer's own
+      // workbook, so anything blocking it is visible here rather than at the
+      // point of trying to send it.
+      try {
+        setMetricExport(await api.get<MetricExportPreview>(`/api/quotes/${id}/metric-export-preview`));
+      } catch {
+        setMetricExport(null);
       }
     } catch (caught) {
       setError(caught);
@@ -321,6 +340,17 @@ export default function QuoteDetail(): ReactNode {
         </div>
       )}
 
+      {metricExport && quote.lines.length > 0 && !metricExport.ready && (
+        <div className="banner warning">
+          <strong>The developer&rsquo;s metric cannot be written yet.</strong>
+          <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
+            {metricExport.blockers.map((blocker: string) => (
+              <li key={blocker}>{blocker}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="card">
         <h2>Actions</h2>
         <div className="row" style={{ flexWrap: 'wrap' }}>
@@ -358,6 +388,11 @@ export default function QuoteDetail(): ReactNode {
             <button onClick={() => void downloadDocument()} disabled={busy} className="secondary">
               Download quote document
             </button>
+          )}
+          {quote.lines.length > 0 && metricExport?.ready && (
+            <a className="button-link" href={`/api/quotes/${quote.id}/metric-export`}>
+              Download developer&rsquo;s metric
+            </a>
           )}
         </div>
 

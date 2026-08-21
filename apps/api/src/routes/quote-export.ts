@@ -13,8 +13,9 @@ import {
   type QuoteDocumentInput,
   type VatConfig,
 } from '@bgs/documents';
-import { getQuoteDocumentSource, withTenant } from '@bgs/db';
+import { getQuoteDocumentSource, getStoredFile, withTenant } from '@bgs/db';
 import { loadApiConfig } from '../env.js';
+import { isImageType, readStoredBytes, sniffType } from '../storage.js';
 
 /**
  * VAT configuration, read from the environment.
@@ -73,6 +74,27 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
         });
       }
 
+      // The operator's uploaded logo, if there is one. A logo that cannot be
+      // read is left out rather than failing the export: a quote without its
+      // logo is still a usable quote, and the preview warns separately.
+      let logo: { data: Uint8Array; type: 'png' | 'jpg' | 'gif' | 'bmp' } | undefined;
+      if (operator.brandingLogoFileId) {
+        try {
+          const file = await withTenant(auth.organisationId, (tx) =>
+            getStoredFile(tx, operator.brandingLogoFileId!),
+          );
+          if (file) {
+            const bytes = await readStoredBytes(file.storagePath);
+            const sniffed = sniffType(bytes);
+            if (sniffed && isImageType(sniffed.kind)) {
+              logo = { data: bytes, type: sniffed.kind };
+            }
+          }
+        } catch (error) {
+          request.log.warn({ err: error, operatorId: operator.id }, 'Could not read operator logo for quote');
+        }
+      }
+
       const detailsByLine = new Map(source.lineDetails.map((detail) => [detail.allocationLineId, detail]));
 
       const lines: QuoteDocumentInput['lines'] = source.quote.lines.map((line) => {
@@ -115,6 +137,7 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
           address: operator.brandingAddress,
           contact: operator.brandingContact,
           accentColour: operator.brandingAccentColour,
+          ...(logo ? { logo } : {}),
         },
         purchaser: {
           entityName: source.purchaser.entityName,
@@ -175,6 +198,9 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
         );
       }
       const operator = source.operators.find((candidate) => candidate.id === source.quote.bankOperatorId);
+      if (operator && !operator.brandingLogoFileId) {
+        warnings.push(`${operator.name} has no logo uploaded, so the document will be text only.`);
+      }
       if (operator && !operator.brandingCompanyName && !operator.brandingAddress) {
         warnings.push(
           `${operator.name} has no quote branding set, so the document will show only its name. Add an address and contact details on the bank operator.`,

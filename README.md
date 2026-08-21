@@ -245,6 +245,46 @@ follows: the allocation table offers only that operator's stock, saving a line
 that reaches another operator's parcel is refused by name, and the document's
 branding is read straight off the quote with nothing to infer.
 
+## Uploads
+
+Two things get uploaded, and both are handled the same careful way.
+
+**An operator's logo**, on the bank operator record, appears at the top of that
+operator's quote documents — so a quote drawn from a client's stock carries
+their logo, not Cosdon's.
+
+**A developer's metric workbook**, on the developer record. It is kept, not
+merely read: the off-site write-back below patches this very file.
+
+Three rules apply to both, and they are tested:
+
+- **The path on disk owes nothing to the uploader.** It is built from the
+  organisation's id and a generated file id, both UUIDs. The original filename
+  is stored for display and used when the file is sent back, but never touches
+  the filesystem — which removes path traversal as a category rather than as a
+  case to defend against.
+- **Type is decided by content.** The declared content-type and the extension
+  are both attacker-controlled, so what is accepted is decided by inspecting the
+  leading bytes. A script named `logo.png` and typed `image/png` is refused.
+- **Nothing is served statically.** Files live outside any web root and come
+  back only through authenticated, tenant-scoped endpoints.
+
+## Writing the allocation back into the developer's metric
+
+Once a quote has an allocation, `Download developer's metric` on the quote
+returns **their own workbook** with the off-site creation tabs filled in — D-2,
+E-2 or F-2 depending on module.
+
+Their file is patched rather than rebuilt, so its macros, data validation and
+every figure already in it survive. The uploaded original is never modified; a
+copy is generated on each download.
+
+The screen says what is standing in the way before you try: no workbook
+uploaded, no allocation lines, or a parcel missing a metric input. That last one
+is a stop rather than a silent omission — writing a parcel without the inputs
+the workbook computes from would give the developer a different unit figure from
+the one they were quoted.
+
 ## Exporting the position
 
 `Export positions` on the exposure screen downloads a spreadsheet of the

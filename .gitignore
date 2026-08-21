@@ -11,3 +11,6 @@ uploads/
 # Screenshot output from scripts/smoke-ui.mjs
 *.png
 !apps/web/public/**/*.png
+
+# Uploaded logos and metric workbooks live here in development.
+storage/

@@ -19,6 +19,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "exceljs": "^4.4.0",
+    "fflate": "^0.8.2",
     "playwright": "^1.62.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

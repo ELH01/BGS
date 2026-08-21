@@ -1,6 +1,7 @@
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { loadApiConfig } from './env.js';
@@ -12,7 +13,9 @@ import backupRoutes from './routes/backup.js';
 import configRoutes from './routes/config.js';
 import developerRoutes from './routes/developers.js';
 import operatorRoutes from './routes/operators.js';
+import metricExportRoutes from './routes/metric-export.js';
 import positionRoutes from './routes/positions.js';
+import uploadRoutes from './routes/uploads.js';
 import quoteExportRoutes from './routes/quote-export.js';
 import quoteRoutes from './routes/quotes.js';
 import solverRoutes from './routes/solver.js';
@@ -67,6 +70,11 @@ export async function buildServer(): Promise<FastifyInstance> {
     }),
   });
 
+  // Uploads: logos and metric workbooks. Per-route limits are tighter still.
+  await app.register(multipart, {
+    limits: { fileSize: 30 * 1024 * 1024, files: 1, fields: 10 },
+  });
+
   await app.register(cors, {
     // The browser client is served from a different port in development.
     // Credentials are required because the session lives in a cookie.
@@ -105,6 +113,8 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(stockRoutes);
   await app.register(quoteRoutes);
   await app.register(positionRoutes);
+  await app.register(uploadRoutes);
+  await app.register(metricExportRoutes);
   await app.register(quoteExportRoutes);
   await app.register(solverRoutes);
 

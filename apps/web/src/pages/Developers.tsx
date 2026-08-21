@@ -1,5 +1,15 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { api, type Developer } from '../api';
+
+interface MetricImportSummary {
+  id: string;
+  kind: string;
+  status: string;
+  metricVersion: string;
+  originalFilename: string | null;
+  byteSize: number | null;
+  createdAt: string;
+}
 import { Empty, ErrorBanner, Field } from '../components/common';
 
 export default function Developers(): ReactNode {
@@ -7,13 +17,55 @@ export default function Developers(): ReactNode {
   const [editing, setEditing] = useState<Developer | 'new' | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [metrics, setMetrics] = useState<Record<string, MetricImportSummary[]>>({});
 
   async function load(): Promise<void> {
     try {
       const { developers: list } = await api.get<{ developers: Developer[] }>('/api/developers');
       setDevelopers(list);
+
+      // Which developers have a workbook on file, so the list can say so.
+      const byDeveloper: Record<string, MetricImportSummary[]> = {};
+      await Promise.all(
+        list.map(async (developer) => {
+          const response = await api.get<{ metricImports: MetricImportSummary[] }>(
+            `/api/developers/${developer.id}/metrics`,
+          );
+          byDeveloper[developer.id] = response.metricImports.filter((entry) => entry.status !== 'discarded');
+        }),
+      );
+      setMetrics(byDeveloper);
     } catch (caught) {
       setError(caught);
+    }
+  }
+
+  /**
+   * Upload the developer's own metric workbook.
+   *
+   * Kept rather than merely read: the off-site write-back patches this very
+   * file, so their macros and existing figures survive into what goes back.
+   */
+  async function uploadMetric(developerId: string, file: File): Promise<void> {
+    setError(null);
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch(`/api/developers/${developerId}/metric`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error ?? 'That workbook could not be uploaded.');
+      }
+      await load();
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -163,6 +215,7 @@ export default function Developers(): ReactNode {
                   <th>Development site</th>
                   <th>LPA / NCA</th>
                   <th>Contact</th>
+                  <th>Metric workbook</th>
                   <th />
                 </tr>
               </thead>
@@ -187,6 +240,38 @@ export default function Developers(): ReactNode {
                     <td>
                       {developer.contactName ?? '—'}
                       {developer.contactEmail && <div className="hint">{developer.contactEmail}</div>}
+                    </td>
+                    <td>
+                      {(metrics[developer.id]?.length ?? 0) > 0 ? (
+                        <>
+                          <a href={`/api/metric-imports/${metrics[developer.id]![0]!.id}/file`}>
+                            {metrics[developer.id]![0]!.originalFilename ?? 'workbook'}
+                          </a>
+                          <div className="hint">
+                            metric {metrics[developer.id]![0]!.metricVersion}
+                            {(metrics[developer.id]?.length ?? 0) > 1 &&
+                              ` · ${metrics[developer.id]!.length} uploaded`}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="hint">none uploaded</span>
+                      )}
+                      <label
+                        className="hint"
+                        style={{ display: 'block', marginTop: '0.35rem', fontWeight: 400 }}
+                      >
+                        <input
+                          type="file"
+                          accept=".xlsx,.xlsm"
+                          disabled={busy}
+                          style={{ maxWidth: 190, fontSize: '0.78rem', padding: '0.2rem' }}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void uploadMetric(developer.id, file);
+                            event.target.value = '';
+                          }}
+                        />
+                      </label>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="link" onClick={() => setEditing(developer)}>

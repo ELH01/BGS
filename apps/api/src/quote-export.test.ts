@@ -185,19 +185,45 @@ describe('the quote document (§4.7)', () => {
     const text = documentText(response.rawPayload);
 
     expect(text).toContain('spatial risk multipliers');
-    expect(text).toContain('has not yet been confirmed for this operator');
   });
 
-  it('shows the total excluding VAT, the VAT, and the total including VAT', async () => {
+  it('says plainly that no VAT is charged when the operator is not registered', async () => {
     const response = await call('GET', `/api/quotes/${quoteId}/document`);
     const text = documentText(response.rawPayload);
 
     expect(text).toContain('Total excluding VAT');
     expect(text).toContain('£46,914.00');
+    expect(text).toContain('VAT (not charged)');
+    expect(text).toContain('No VAT is charged on this quotation');
+    expect(text).toContain('Total including VAT');
+  });
+
+  it('charges VAT when the supplying operator is registered', async () => {
+    // VAT follows the operator the quote goes out under, not the platform.
+    const updated = await json('PUT', `/api/bank-operators/${operatorId}`, {
+      name: 'Cosdon Habitat Banks',
+      branding: { companyName: 'Cosdon Consulting Ltd', address: 'Unit 4, Example Park' },
+      invoicingAddress: 'Accounts, Unit 4, Example Park, Devon EX1 1AA',
+      vat: { registered: true, registrationNumber: 'GB123456789', ratePercent: '20' },
+    });
+    expect(updated.status, JSON.stringify(updated.body)).toBe(200);
+
+    const response = await call('GET', `/api/quotes/${quoteId}/document`);
+    const text = documentText(response.rawPayload);
+
     expect(text).toContain('VAT at 20%');
     expect(text).toContain('£9,382.80');
-    expect(text).toContain('Total including VAT');
     expect(text).toContain('£56,296.80');
+    expect(text).toContain('GB123456789');
+    expect(text).toContain('Invoicing address');
+    expect(text).toContain('Accounts, Unit 4, Example Park, Devon EX1 1AA');
+
+    // Put it back, so the tests after this one see the default position.
+    await json('PUT', `/api/bank-operators/${operatorId}`, {
+      name: 'Cosdon Habitat Banks',
+      branding: { companyName: 'Cosdon Consulting Ltd', address: 'Unit 4, Example Park' },
+      vat: { registered: false },
+    });
   });
 
   it('refuses to export a quote with no allocation', async () => {
@@ -310,20 +336,21 @@ describe('document preview warnings', () => {
     expect(response.body.warnings.some((w: string) => /no quote branding set/.test(w))).toBe(true);
   });
 
-  it('charges VAT at the standard rate by default, and says it is not yet confirmed', async () => {
+  it('reports the operator’s own VAT position, not a platform default', async () => {
     const response = await json('GET', `/api/quotes/${quoteId}/document-preview`);
-    expect(response.body.vat.treatment).toBe('standard-rate');
-    expect(response.body.vat.status).toBe('unconfirmed');
+    expect(response.body.vat.treatment).toBe('none');
+    // A recorded fact about the operator either way, so never provisional.
+    expect(response.body.vat.status).toBe('confirmed');
   });
 
   it('reports all three totals, so the screen shows what the document will', async () => {
     const response = await json('GET', `/api/quotes/${quoteId}/document-preview`);
     expect(response.body.totals).toEqual({
       excludingVat: '46914.00',
-      vat: '9382.80',
-      includingVat: '56296.80',
-      vatCharged: true,
-      ratePercent: '20',
+      vat: '0.00',
+      includingVat: '46914.00',
+      vatCharged: false,
+      ratePercent: '0',
     });
   });
 });

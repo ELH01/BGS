@@ -18,25 +18,30 @@ import { loadApiConfig } from '../env.js';
 import { isImageType, readStoredBytes, sniffType } from '../storage.js';
 
 /**
- * VAT configuration, read from the environment.
+ * The VAT position of the operator this quote supplies.
  *
- * Quotes carry the total excluding VAT, the VAT, and the total including VAT.
- * Standard rate is the default; set VAT_TREATMENT=none where the operator is
- * not registered, and the document says so explicitly rather than leaving a
- * reader to wonder whether VAT was forgotten.
+ * A quotation goes out under that operator, so it is their registration that
+ * governs it — Cosdon may not be registered while a client bank is. Read from
+ * the operator record rather than from a platform-wide setting, because the
+ * same platform has to produce a correct document for both.
  */
-function vatConfig(): VatConfig {
-  const treatment = process.env['VAT_TREATMENT'] === 'none' ? 'none' : 'standard-rate';
-  const registrationNumber = process.env['VAT_REGISTRATION_NUMBER'];
+function vatConfigFor(operator: {
+  vatRegistered: boolean;
+  vatRegistrationNumber: string | null;
+  vatRatePercent: string;
+}): VatConfig {
+  if (!operator.vatRegistered) {
+    return { treatment: 'none', ratePercent: '0', status: 'confirmed' };
+  }
 
   return {
-    treatment,
-    ratePercent: process.env['VAT_RATE_PERCENT'] ?? '20',
-    ...(registrationNumber ? { registrationNumber } : {}),
-    // Confirmed only once someone has deliberately configured it.
-    status: process.env['VAT_TREATMENT'] ? 'confirmed' : 'unconfirmed',
+    treatment: 'standard-rate',
+    ratePercent: operator.vatRatePercent,
+    ...(operator.vatRegistrationNumber ? { registrationNumber: operator.vatRegistrationNumber } : {}),
+    status: 'confirmed',
   };
 }
+
 
 export default async function quoteExportRoutes(app: FastifyInstance): Promise<void> {
   const config = loadApiConfig();
@@ -118,12 +123,8 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
           'The spatial risk multipliers used to calculate these figures are provisional and pending confirmation against a current authoritative source.',
         );
       }
-      const vat = vatConfig();
-      if (vat.status === 'unconfirmed') {
-        caveats.push(
-          'The VAT treatment shown is the standard rate applied by default and has not yet been confirmed for this operator.',
-        );
-      }
+      const vat = vatConfigFor(operator);
+
 
       const requirements = source.quote.targets.filter((target) => target.requiredUnits.isPositive());
 
@@ -137,6 +138,7 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
           address: operator.brandingAddress,
           contact: operator.brandingContact,
           accentColour: operator.brandingAccentColour,
+          invoicingAddress: operator.invoicingAddress,
           ...(logo ? { logo } : {}),
         },
         purchaser: {
@@ -182,7 +184,12 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
       );
       if (!source) return reply.code(404).send({ error: 'Quote not found.' });
 
-      const vat = vatConfig();
+      const operator = source.operators.find((candidate) => candidate.id === source.quote.bankOperatorId);
+      // With no operator there is no VAT position to report; the warning below
+      // says so, and the totals fall back to no VAT rather than guessing one.
+      const vat = operator
+        ? vatConfigFor(operator)
+        : ({ treatment: 'none', ratePercent: '0', status: 'confirmed' } as VatConfig);
       const totals = quoteTotals(
         source.quote.lines.map((line) => line.lineTotal),
         vat,
@@ -197,7 +204,6 @@ export default async function quoteExportRoutes(app: FastifyInstance): Promise<v
           'This quote has no supplying bank operator recorded, so there is no branding for the document to carry.',
         );
       }
-      const operator = source.operators.find((candidate) => candidate.id === source.quote.bankOperatorId);
       if (operator && !operator.brandingLogoFileId) {
         warnings.push(`${operator.name} has no logo uploaded, so the document will be text only.`);
       }

@@ -21,7 +21,13 @@ export interface ApiConfig {
   isProduction: boolean;
   /** Default stale-quote threshold in days (§3.7, pending confirmation §5.5). */
   staleQuoteDays: number;
-  /** Default buffer above 10% net gain (§4.3.4, pending confirmation §5.4). */
+  /**
+   * Buffer applied above the stated shortfall.
+   *
+   * Zero by default: the target is the shortfall exactly, and the metric
+   * workbook itself is what says whether the resulting figure passes. Raise it
+   * if quotes start coming back short after an LPA re-rounds them.
+   */
   netGainBufferPercent: string;
 }
 
@@ -71,6 +77,6 @@ export function loadApiConfig(): ApiConfig {
     sessionTtlHours: Number(process.env['SESSION_TTL_HOURS'] ?? 24 * 14),
     isProduction,
     staleQuoteDays: Number(process.env['STALE_QUOTE_DAYS'] ?? 60),
-    netGainBufferPercent: process.env['NET_GAIN_BUFFER_PERCENT'] ?? '0.1',
+    netGainBufferPercent: process.env['NET_GAIN_BUFFER_PERCENT'] ?? '0',
   };
 }

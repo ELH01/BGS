@@ -9,7 +9,7 @@ class Client {
   #cookie = '';
   constructor(private readonly instance: FastifyInstance) {}
 
-  async request(method: 'GET' | 'POST' | 'PUT' | 'PATCH', url: string, payload?: unknown) {
+  async request(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', url: string, payload?: unknown) {
     const response = await this.instance.inject({
       method,
       url,
@@ -130,13 +130,24 @@ describe('quote creation (§3.7, §4.4)', () => {
     expect(response.body.quote.status).toBe('draft');
   });
 
-  it('applies the buffer above the shortfall, not exactly on it (§4.3.4)', async () => {
+  it('targets the shortfall exactly, since the metric itself validates the figure', async () => {
     const quoteId = await makeQuote('10.0');
     const response = await client.get(`/api/quotes/${quoteId}/targets`);
     const target = response.body.targets[0];
 
     expect(target.requiredUnits).toBe('10.0000');
-    expect(target.bufferedTargetUnits).toBe('10.0100');
+    expect(target.bufferedTargetUnits).toBe('10.0000');
+  });
+
+  it('still applies a buffer when one is configured', async () => {
+    // The mechanism remains, in case quotes start coming back short after an
+    // LPA re-rounds them; it is simply set to zero by default.
+    const { bufferedTarget, UnitQuantity } = await import('@bgs/core');
+    const target = bufferedTarget('area', UnitQuantity.of('area', '10.0'), {
+      gainPercent: '100',
+      bufferPercent: '0.5',
+    });
+    expect(target.toString()).toBe('10.0500');
   });
 
   it('accepts a manual entry path with no metric import (§4.4)', async () => {
@@ -166,7 +177,7 @@ describe('the hard target gate (§4.4)', () => {
     const response = await allocate(quoteId, parcelId, '2.0');
     expect(response.status).toBe(200);
     expect(response.body.targetStatus[0].meetsTarget).toBe(false);
-    expect(response.body.targetStatus[0].shortBy).toBe('3.0050');
+    expect(response.body.targetStatus[0].shortBy).toBe('3.0000');
   });
 
   it('refuses to issue a quote while a module sits below its target', async () => {
@@ -175,20 +186,27 @@ describe('the hard target gate (§4.4)', () => {
 
     expect(response.status).toBe(409);
     expect(response.body.error).toMatch(/cannot be issued yet/);
-    expect(response.body.error).toMatch(/3\.0050 units below/);
+    expect(response.body.error).toMatch(/3\.0000 units below/);
   });
 
   it('issues the quote once the target is cleared', async () => {
-    await allocate(quoteId, parcelId, '5.005');
+    await allocate(quoteId, parcelId, '5.0');
     const response = await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
 
     expect(response.status).toBe(200);
     expect(response.body.quote.status).toBe('quoted');
   });
 
-  it('will not let an exactly-10% allocation through when the buffer needs more', async () => {
-    // 5.0000 is the bare shortfall; the buffered target is 5.0050.
+  it('accepts an allocation that meets the shortfall exactly', async () => {
+    // With no buffer configured the target is the shortfall itself, and the
+    // metric workbook is what says whether that figure passes.
     await allocate(quoteId, parcelId, '5.0');
+    const response = await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
+    expect(response.status).toBe(200);
+  });
+
+  it('refuses an allocation a hair under the shortfall', async () => {
+    await allocate(quoteId, parcelId, '4.9999');
     const response = await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
     expect(response.status).toBe(409);
   });
@@ -216,26 +234,26 @@ describe('exposure semantics (§3.4, §4.4)', () => {
   it('a quoted allocation exposes units without reducing availability', async () => {
     const parcelId = await makeParcel('20.0');
     const quoteId = await makeQuote('5.0');
-    await allocate(quoteId, parcelId, '5.005');
+    await allocate(quoteId, parcelId, '5.0');
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
 
     const pool = await client.get('/api/stock-pool');
     const entry = pool.body.pool.find((p: any) => p.stockParcelId === parcelId);
-    expect(entry.quotedUnits).toBe('5.0050');
+    expect(entry.quotedUnits).toBe('5.0000');
     expect(entry.availableUnits).toBe('20.0000');
   });
 
   it('a reservation reduces availability', async () => {
     const parcelId = await makeParcel('20.0');
     const quoteId = await makeQuote('5.0');
-    await allocate(quoteId, parcelId, '5.005');
+    await allocate(quoteId, parcelId, '5.0');
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'reserved' });
 
     const pool = await client.get('/api/stock-pool');
     const entry = pool.body.pool.find((p: any) => p.stockParcelId === parcelId);
-    expect(entry.reservedUnits).toBe('5.0050');
-    expect(entry.availableUnits).toBe('14.9950');
+    expect(entry.reservedUnits).toBe('5.0000');
+    expect(entry.availableUnits).toBe('15.0000');
   });
 
   it('refuses a reservation that exceeds what is actually available', async () => {
@@ -259,7 +277,7 @@ describe('exposure semantics (§3.4, §4.4)', () => {
     const parcelId = await makeParcel('6.0');
     for (const _ of [1, 2]) {
       const quoteId = await makeQuote('5.0');
-      await allocate(quoteId, parcelId, '5.005');
+      await allocate(quoteId, parcelId, '5.0');
       const response = await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
       expect(response.status).toBe(200);
     }
@@ -273,7 +291,7 @@ describe('exposure semantics (§3.4, §4.4)', () => {
   it('cancelling releases exposure entirely', async () => {
     const parcelId = await makeParcel('20.0');
     const quoteId = await makeQuote('5.0');
-    await allocate(quoteId, parcelId, '5.005');
+    await allocate(quoteId, parcelId, '5.0');
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'cancelled', reason: 'Developer went elsewhere.' });
 
@@ -313,7 +331,7 @@ describe('editing rules by status (§4.4)', () => {
   it('edits a quoted allocation with no audit friction', async () => {
     const parcelId = await makeParcel('20.0');
     const quoteId = await makeQuote('5.0');
-    await allocate(quoteId, parcelId, '5.005');
+    await allocate(quoteId, parcelId, '5.0');
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
 
     const before = await client.get(`/api/quotes/${quoteId}`);
@@ -329,7 +347,7 @@ describe('editing rules by status (§4.4)', () => {
   it('records every edit to a reserved allocation, being a firmer commitment', async () => {
     const parcelId = await makeParcel('20.0');
     const quoteId = await makeQuote('5.0');
-    await allocate(quoteId, parcelId, '5.005');
+    await allocate(quoteId, parcelId, '5.0');
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'reserved' });
 
@@ -338,14 +356,14 @@ describe('editing rules by status (§4.4)', () => {
     const entry = response.body.audit.find((a: any) => a.action === 'allocation-edited-while-reserved');
 
     expect(entry).toBeDefined();
-    expect(entry.detail.before[0].rawQuantity).toBe('5.0050');
+    expect(entry.detail.before[0].rawQuantity).toBe('5.0000');
     expect(entry.detail.after[0].rawQuantity).toBe('7.0000');
   });
 
   it('refuses to edit a sold allocation, pointing at the reversal instead (§4.6)', async () => {
     const parcelId = await makeParcel('20.0');
     const quoteId = await makeQuote('5.0');
-    await allocate(quoteId, parcelId, '5.005');
+    await allocate(quoteId, parcelId, '5.0');
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'reserved' });
     await client.post(`/api/quotes/${quoteId}/status`, {
@@ -533,7 +551,7 @@ describe('status ladder', () => {
   it('refuses to jump from draft straight to sold', async () => {
     const parcelId = await makeParcel('20.0');
     const quoteId = await makeQuote('5.0');
-    await allocate(quoteId, parcelId, '5.005');
+    await allocate(quoteId, parcelId, '5.0');
 
     const response = await client.post(`/api/quotes/${quoteId}/status`, {
       status: 'sold',
@@ -546,7 +564,7 @@ describe('status ladder', () => {
   it('records every transition with both statuses (§3.10)', async () => {
     const parcelId = await makeParcel('20.0');
     const quoteId = await makeQuote('5.0');
-    await allocate(quoteId, parcelId, '5.005');
+    await allocate(quoteId, parcelId, '5.0');
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
     await client.post(`/api/quotes/${quoteId}/status`, { status: 'reserved' });
 
@@ -577,5 +595,114 @@ describe('quote listing', () => {
   it('filters by status', async () => {
     const response = await client.get('/api/quotes?status=cancelled');
     expect(response.body.quotes.every((q: any) => q.status === 'cancelled')).toBe(true);
+  });
+});
+
+describe('deleting a quote', () => {
+  it('removes a draft outright', async () => {
+    const quoteId = await makeQuote('1.0');
+    const response = await client.request('DELETE', `/api/quotes/${quoteId}`);
+    expect(response.status).toBe(200);
+
+    expect((await client.get(`/api/quotes/${quoteId}`)).status).toBe(404);
+  });
+
+  it('removes a cancelled quote when it is genuinely clutter', async () => {
+    const quoteId = await makeQuote('1.0');
+    await client.post(`/api/quotes/${quoteId}/status`, { status: 'cancelled', reason: 'Duplicate.' });
+
+    const response = await client.request('DELETE', `/api/quotes/${quoteId}`);
+    expect(response.status).toBe(200);
+  });
+
+  it('keeps a cancelled quote unless it is actually deleted', async () => {
+    // Retention is the default; deletion is a deliberate act.
+    const quoteId = await makeQuote('1.0');
+    await client.post(`/api/quotes/${quoteId}/status`, { status: 'cancelled', reason: 'Went elsewhere.' });
+
+    const response = await client.get(`/api/quotes/${quoteId}`);
+    expect(response.status).toBe(200);
+    expect(response.body.quote.status).toBe('cancelled');
+  });
+
+  it('refuses to delete a sold quote, whose allocation explains retired stock', async () => {
+    const parcelId = await makeParcel('20.0');
+    const quoteId = await makeQuote('5.0');
+    await allocate(quoteId, parcelId, '5.0');
+    await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
+    await client.post(`/api/quotes/${quoteId}/status`, { status: 'reserved' });
+    await client.post(`/api/quotes/${quoteId}/status`, { status: 'sold', soldDate: '2026-08-21' });
+
+    const response = await client.request('DELETE', `/api/quotes/${quoteId}`);
+    expect(response.status).toBe(409);
+    expect(response.body.error).toMatch(/Reverse the sale first/);
+  });
+
+  it('still refuses after a sale is reversed, since the sale record remains', async () => {
+    const parcelId = await makeParcel('20.0');
+    const quoteId = await makeQuote('5.0');
+    await allocate(quoteId, parcelId, '5.0');
+    await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
+    await client.post(`/api/quotes/${quoteId}/status`, { status: 'reserved' });
+    await client.post(`/api/quotes/${quoteId}/status`, { status: 'sold', soldDate: '2026-08-21' });
+    await client.post(`/api/quotes/${quoteId}/reverse-sale`, {
+      reason: 'Deal fell through.',
+      moveTo: 'cancelled',
+    });
+
+    const response = await client.request('DELETE', `/api/quotes/${quoteId}`);
+    expect(response.status).toBe(409);
+    expect(response.body.error).toMatch(/explains stock having moved/);
+  });
+
+  it('404s on a quote that is not there', async () => {
+    const response = await client.request('DELETE', '/api/quotes/00000000-0000-0000-0000-000000000000');
+    expect(response.status).toBe(404);
+  });
+});
+
+describe('reservation expiry', () => {
+  it('records how long the stock is held for', async () => {
+    const parcelId = await makeParcel('20.0');
+    const quoteId = await makeQuote('5.0');
+    await allocate(quoteId, parcelId, '5.0');
+    await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
+
+    const response = await client.post(`/api/quotes/${quoteId}/status`, {
+      status: 'reserved',
+      reservationExpiresAt: '2026-11-30T23:59:59.000Z',
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.quote.reservationExpiresAt).toContain('2026-11-30');
+  });
+
+  it('allows a reservation with no expiry', async () => {
+    const parcelId = await makeParcel('20.0');
+    const quoteId = await makeQuote('5.0');
+    await allocate(quoteId, parcelId, '5.0');
+    await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
+
+    const response = await client.post(`/api/quotes/${quoteId}/status`, { status: 'reserved' });
+    expect(response.status).toBe(200);
+    expect(response.body.quote.reservationExpiresAt).toBeNull();
+  });
+
+  it('holds the stock regardless — an expiry is a prompt to review, not a release', async () => {
+    const parcelId = await makeParcel('20.0');
+    const quoteId = await makeQuote('5.0');
+    await allocate(quoteId, parcelId, '5.0');
+    await client.post(`/api/quotes/${quoteId}/status`, { status: 'quoted' });
+    await client.post(`/api/quotes/${quoteId}/status`, {
+      status: 'reserved',
+      reservationExpiresAt: '2020-01-01T00:00:00.000Z',
+    });
+
+    const pool = await client.get('/api/stock-pool');
+    const entry = pool.body.pool.find((p: any) => p.stockParcelId === parcelId);
+    // Long past its date, and the stock is still held: nothing frees up
+    // silently underneath you.
+    expect(entry.reservedUnits).toBe('5.0000');
+    expect(entry.availableUnits).toBe('15.0000');
   });
 });

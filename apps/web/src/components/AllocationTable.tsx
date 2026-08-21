@@ -174,8 +174,9 @@ export function AllocationTable({ solution, rows, onChange, disabled }: Allocati
           </div>
         </div>
         <div className="hint" style={{ marginTop: '0.35rem' }}>
-          Target is the {solution.requiredUnits}-unit shortfall plus the buffer, so re-rounding on review
-          cannot take it below the statutory minimum.
+          {solution.bufferedTargetUnits === solution.requiredUnits
+            ? `Target is the ${solution.requiredUnits}-unit shortfall. The metric workbook itself is what confirms the figure passes.`
+            : `Target is the ${solution.requiredUnits}-unit shortfall plus a buffer, so re-rounding on review cannot take it below.`}
         </div>
       </div>
 

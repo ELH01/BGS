@@ -48,12 +48,15 @@ export default async function configRoutes(app: FastifyInstance): Promise<void> 
       netGain: {
         statutoryPercent: STATUTORY_NET_GAIN_PERCENT,
         bufferPercent: config.netGainBufferPercent,
-        // Both remain suggestions until confirmed (§5.4, §5.5).
-        bufferConfirmed: false,
+        // Settled: the target is the shortfall itself, and the metric workbook
+        // is what says whether that figure passes.
+        bufferConfirmed: true,
       },
       quotes: {
         staleAfterDays: config.staleQuoteDays,
-        staleThresholdConfirmed: false,
+        // Advisory only: nothing happens automatically when a quote goes
+        // stale, and quotes are kept until deliberately deleted.
+        staleThresholdConfirmed: true,
       },
     };
   });

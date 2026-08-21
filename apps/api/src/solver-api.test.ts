@@ -121,11 +121,12 @@ describe('the solver endpoint (§4.3)', () => {
     expect(option.effectiveCostPerUnit).toBe('40000.00');
   });
 
-  it('suggests a split that clears the buffered target', async () => {
+  it('suggests a split that clears the target', async () => {
     const response = await solve();
-    expect(response.body.bufferedTargetUnits).toBe('5.0050');
+    // No buffer configured, so the target is the stated shortfall itself.
+    expect(response.body.bufferedTargetUnits).toBe('5.0000');
     expect(response.body.shortOfTarget).toBe(false);
-    expect(Number(response.body.suggestedEffectiveUnits)).toBeGreaterThanOrEqual(5.005);
+    expect(Number(response.body.suggestedEffectiveUnits)).toBeGreaterThanOrEqual(5);
   });
 
   it('prefers the near parcel, being cheaper per effective unit', async () => {

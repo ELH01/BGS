@@ -123,22 +123,24 @@ export default function Settings(): ReactNode {
             <tr>
               <th>Buffer applied above it</th>
               <td className="numeric">
-                +{config.netGain.bufferPercent}%{' '}
-                {!config.netGain.bufferConfirmed && <span className="badge over">suggested</span>}
+                {Number(config.netGain.bufferPercent) === 0 ? (
+                  <>none</>
+                ) : (
+                  <>+{config.netGain.bufferPercent}%</>
+                )}
               </td>
             </tr>
             <tr>
               <th>Quote treated as stale after</th>
-              <td className="numeric">
-                {config.quotes.staleAfterDays} days{' '}
-                {!config.quotes.staleThresholdConfirmed && <span className="badge over">suggested</span>}
-              </td>
+              <td className="numeric">{config.quotes.staleAfterDays} days</td>
             </tr>
           </tbody>
         </table>
         <p className="hint">
-          The buffer exists so a quote solved to exactly {config.netGain.statutoryPercent}% cannot fall
-          below it when the figures are re-rounded on review.
+          {Number(config.netGain.bufferPercent) === 0
+            ? 'A quote targets the stated shortfall exactly; the metric workbook is what confirms the figure passes. Set NET_GAIN_BUFFER_PERCENT if quotes start coming back short after an LPA re-rounds them.'
+            : 'The buffer lifts the target above the shortfall so re-rounding on review cannot take it under.'}
+          {' '}Stale is advisory: quotes are kept until deliberately deleted.
         </p>
       </div>
     </>

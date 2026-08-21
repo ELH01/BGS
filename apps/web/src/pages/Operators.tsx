@@ -95,6 +95,12 @@ export default function Operators(): ReactNode {
         contact: text('brandingContact'),
         accentColour: text('brandingAccentColour'),
       },
+      invoicingAddress: text('invoicingAddress'),
+      vat: {
+        registered: form.get('vatRegistered') === 'on',
+        registrationNumber: text('vatRegistrationNumber'),
+        ratePercent: String(form.get('vatRatePercent') ?? '20').trim() || '20',
+      },
     };
 
     try {
@@ -243,6 +249,49 @@ export default function Operators(): ReactNode {
               />
             </Field>
 
+            <h3 style={{ marginTop: '1.25rem' }}>Invoicing and VAT</h3>
+            <p className="hint" style={{ marginTop: '-0.35rem', marginBottom: '0.75rem' }}>
+              A quote goes out under this operator, so it is their VAT position that governs it — not
+              yours. Leave unregistered and the document says explicitly that no VAT is charged.
+            </p>
+
+            <Field label="Invoicing address" hint="where payment is sent, if not the address above">
+              <textarea
+                name="invoicingAddress"
+                rows={3}
+                defaultValue={editing === 'new' ? '' : editing.invoicingAddress ?? ''}
+              />
+            </Field>
+
+            <div className="field-row">
+              <Field label="VAT registered">
+                <label className="row" style={{ fontWeight: 400, marginTop: '0.35rem' }}>
+                  <input
+                    type="checkbox"
+                    name="vatRegistered"
+                    style={{ width: 'auto' }}
+                    defaultChecked={editing === 'new' ? false : editing.vat.registered}
+                  />
+                  <span>This operator charges VAT on unit sales</span>
+                </label>
+              </Field>
+              <Field label="VAT registration number">
+                <input
+                  name="vatRegistrationNumber"
+                  placeholder="GB123456789"
+                  defaultValue={editing === 'new' ? '' : editing.vat.registrationNumber ?? ''}
+                />
+              </Field>
+              <Field label="VAT rate" hint="%">
+                <input
+                  name="vatRatePercent"
+                  inputMode="decimal"
+                  pattern="\d{1,3}(\.\d{1,3})?"
+                  defaultValue={editing === 'new' ? '20' : editing.vat.ratePercent}
+                />
+              </Field>
+            </div>
+
             <Field label="Notes">
               <textarea name="notes" rows={2} defaultValue={editing === 'new' ? '' : editing.notes ?? ''} />
             </Field>
@@ -270,6 +319,7 @@ export default function Operators(): ReactNode {
                   <th>Name</th>
                   <th>Contact</th>
                   <th>Quote branding</th>
+                  <th>VAT</th>
                   <th />
                 </tr>
               </thead>
@@ -310,6 +360,16 @@ export default function Operators(): ReactNode {
                         </span>
                       ) : (
                         <span className="hint">not set</span>
+                      )}
+                    </td>
+                    <td>
+                      {operator.vat.registered ? (
+                        <>
+                          <span className="badge">{operator.vat.ratePercent}%</span>
+                          <div className="hint">{operator.vat.registrationNumber}</div>
+                        </>
+                      ) : (
+                        <span className="hint">not registered</span>
                       )}
                     </td>
                     <td style={{ textAlign: 'right' }}>

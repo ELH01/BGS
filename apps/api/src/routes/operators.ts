@@ -37,6 +37,23 @@ const operatorSchema = z.object({
   contactPhone: nullableText(50),
   notes: nullableText(5000),
   branding: brandingSchema.optional(),
+  /** Where payment is sent, when it differs from the letterhead address. */
+  invoicingAddress: nullableText(500),
+  /**
+   * This operator's VAT position. Governs any quote drawn on its stock,
+   * because the quote goes out under this operator rather than the platform.
+   */
+  vat: z
+    .object({
+      registered: z.boolean().default(false),
+      registrationNumber: nullableText(30),
+      ratePercent: z
+        .string()
+        .trim()
+        .regex(/^\d{1,3}(\.\d{1,3})?$/, 'Enter a percentage, e.g. 20.')
+        .optional(),
+    })
+    .optional(),
 });
 
 const siteSchema = z.object({
@@ -92,6 +109,10 @@ export default async function operatorRoutes(app: FastifyInstance): Promise<void
         brandingContact: body.branding?.contact ?? null,
         brandingLogoFileId: body.branding?.logoFileId ?? null,
         brandingAccentColour: body.branding?.accentColour ?? null,
+        invoicingAddress: body.invoicingAddress,
+        vatRegistered: body.vat?.registered ?? false,
+        vatRegistrationNumber: body.vat?.registrationNumber ?? null,
+        vatRatePercent: body.vat?.ratePercent ?? '20',
       }),
     );
     return reply.code(201).send({ bankOperator: operator });
@@ -117,6 +138,10 @@ export default async function operatorRoutes(app: FastifyInstance): Promise<void
           brandingContact: body.branding?.contact ?? null,
           brandingLogoFileId: body.branding?.logoFileId ?? null,
           brandingAccentColour: body.branding?.accentColour ?? null,
+          invoicingAddress: body.invoicingAddress,
+          vatRegistered: body.vat?.registered ?? false,
+          vatRegistrationNumber: body.vat?.registrationNumber ?? null,
+          vatRatePercent: body.vat?.ratePercent ?? '20',
         }),
       );
       if (!operator) return reply.code(404).send({ error: 'Bank operator not found.' });

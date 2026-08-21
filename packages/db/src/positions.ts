@@ -125,6 +125,9 @@ export interface QuotePositionRow {
   reservationExpiresAt: Date | null;
   soldAt: Date | null;
   planningApplicationReference: string | null;
+  /** From the operator this quote supplies; governs its VAT. */
+  vatRegistered: boolean;
+  vatRatePercent: string | null;
 }
 
 export async function getQuotePositions(
@@ -139,7 +142,8 @@ export async function getQuotePositions(
             d.purchasing_entity_name AS purchaser, o.name AS bank_operator,
             (SELECT count(*) FROM allocation_line l WHERE l.quote_id = q.id) AS line_count,
             q.created_at, q.last_activity_at, q.reservation_expires_at, q.sold_at,
-            sr.planning_application_reference
+            sr.planning_application_reference,
+            COALESCE(o.vat_registered, false) AS vat_registered, o.vat_rate_percent
        FROM quote q
        JOIN developer d ON d.id = q.developer_id
        LEFT JOIN bank_operator o ON o.id = q.bank_operator_id
@@ -164,6 +168,8 @@ export async function getQuotePositions(
       reservationExpiresAt: (r['reservation_expires_at'] as Date | null) ?? null,
       soldAt: (r['sold_at'] as Date | null) ?? null,
       planningApplicationReference: (r['planning_application_reference'] as string | null) ?? null,
+      vatRegistered: Boolean(r['vat_registered']),
+      vatRatePercent: (r['vat_rate_percent'] as string | null) ?? null,
     };
   });
 }

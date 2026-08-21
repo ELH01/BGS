@@ -39,6 +39,20 @@ export const DEFAULT_VAT_CONFIG: VatConfig = Object.freeze({
   status: 'unconfirmed',
 });
 
+/**
+ * A percentage as someone would write it.
+ *
+ * The rate is stored as a numeric with room for fractions of a per cent, so it
+ * arrives as "20.000". Printing that on a quote reads like a spreadsheet
+ * artefact rather than a rate, so trailing zeros are dropped — while a genuine
+ * fractional rate such as 12.5% keeps its digits.
+ */
+export function formatRatePercent(rate: string): string {
+  const trimmed = rate.trim();
+  if (!trimmed.includes('.')) return trimmed;
+  return trimmed.replace(/0+$/, '').replace(/\.$/, '');
+}
+
 export interface QuoteTotals {
   /** Sum of the line totals. The total excluding VAT. */
   net: Money;
@@ -73,5 +87,11 @@ export function quoteTotals(lineTotals: readonly Money[], config: VatConfig = DE
   }
 
   const vat = net.times(rate.dividedBy(100));
-  return { net, vat, gross: net.plus(vat), vatCharged: true, ratePercent: config.ratePercent };
+  return {
+    net,
+    vat,
+    gross: net.plus(vat),
+    vatCharged: true,
+    ratePercent: formatRatePercent(config.ratePercent),
+  };
 }

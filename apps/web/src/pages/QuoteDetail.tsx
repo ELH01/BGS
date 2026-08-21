@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   MODULE_LABEL,
   QUOTE_STATUS_LABEL,
@@ -30,6 +30,7 @@ type RowsByModule = Partial<Record<MetricModule, Record<string, AllocationRowSta
 
 export default function QuoteDetail(): ReactNode {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const [quote, setQuote] = useState<Quote | null>(null);
   const [sale, setSale] = useState<SaleRecord | null>(null);
   const [audit, setAudit] = useState<AuditRecord[]>([]);
@@ -230,6 +231,47 @@ export default function QuoteDetail(): ReactNode {
     await transition('sold', { soldDate, planningApplicationReference });
   }
 
+  /**
+   * Reserve, holding the stock until a date.
+   *
+   * The date is a prompt rather than a silent default: a reservation takes
+   * stock out of circulation, so how long for is a decision worth making
+   * deliberately each time.
+   */
+  async function reserve(): Promise<void> {
+    const until = window.prompt(
+      'Hold this stock until which date? (YYYY-MM-DD, or leave blank for no expiry)',
+      new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 10),
+    );
+    if (until === null) return;
+
+    const trimmed = until.trim();
+    if (trimmed !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      setError(new Error('Enter the date as YYYY-MM-DD, or leave it blank for no expiry.'));
+      return;
+    }
+
+    await transition(
+      'reserved',
+      trimmed === '' ? {} : { reservationExpiresAt: new Date(`${trimmed}T23:59:59Z`).toISOString() },
+    );
+  }
+
+  /** Remove a quote outright. Kept deliberate, and refused once sold. */
+  async function remove(): Promise<void> {
+    if (!window.confirm(`Delete ${quote!.reference}? This cannot be undone.`)) return;
+
+    setError(null);
+    setBusy(true);
+    try {
+      await api.delete(`/api/quotes/${quote!.id}`);
+      navigate('/quotes');
+    } catch (caught) {
+      setError(caught);
+      setBusy(false);
+    }
+  }
+
   async function reverse(): Promise<void> {
     const reason = window.prompt('Why is this sale being reversed? (required)');
     if (!reason) return;
@@ -258,7 +300,21 @@ export default function QuoteDetail(): ReactNode {
           </h1>
           <p>
             {developer?.purchasingEntityName ?? '—'}
-            {quote.bankOperatorName && <> · supplied by {quote.bankOperatorName}</>} ·{' '}
+            {quote.bankOperatorName && <> · supplied by {quote.bankOperatorName}</>}
+            {quote.reservationExpiresAt && (
+              <>
+                {' '}
+                ·{' '}
+                {new Date(quote.reservationExpiresAt) < new Date() ? (
+                  <span className="badge over">
+                    reservation expired {new Date(quote.reservationExpiresAt).toLocaleDateString('en-GB')}
+                  </span>
+                ) : (
+                  <>held until {new Date(quote.reservationExpiresAt).toLocaleDateString('en-GB')}</>
+                )}
+              </>
+            )}{' '}
+            ·{' '}
             {formatMoney(quote.totalPrice)} · <Link to="/quotes">back to quotes</Link>
           </p>
         </div>
@@ -365,7 +421,7 @@ export default function QuoteDetail(): ReactNode {
             </button>
           )}
           {quote.status === 'quoted' && (
-            <button onClick={() => void transition('reserved')} disabled={busy}>
+            <button onClick={() => void reserve()} disabled={busy}>
               Reserve
             </button>
           )}
@@ -387,6 +443,11 @@ export default function QuoteDetail(): ReactNode {
           {quote.lines.length > 0 && (
             <button onClick={() => void downloadDocument()} disabled={busy} className="secondary">
               Download quote document
+            </button>
+          )}
+          {quote.status !== 'sold' && (
+            <button onClick={() => void remove()} disabled={busy} className="secondary">
+              Delete quote
             </button>
           )}
           {quote.lines.length > 0 && metricExport?.ready && (

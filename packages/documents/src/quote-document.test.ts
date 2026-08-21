@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { unzipSync } from 'fflate';
 import { Money, UnitQuantity } from '@bgs/core';
 import { quoteDocumentFilename, renderQuoteDocument, type QuoteDocumentInput } from './quote-document.js';
-import { DEFAULT_VAT_CONFIG, quoteTotals, type VatConfig } from './vat.js';
+import { DEFAULT_VAT_CONFIG, formatRatePercent, quoteTotals, type VatConfig } from './vat.js';
 
 /** The document's visible text, read back out of the .docx itself. */
 async function documentText(input: QuoteDocumentInput): Promise<string> {
@@ -289,5 +289,26 @@ describe('the document is a real .docx', () => {
     expect(files['[Content_Types].xml']).toBeDefined();
     expect(files['word/document.xml']).toBeDefined();
     expect(files['_rels/.rels']).toBeDefined();
+  });
+});
+
+describe('rate formatting', () => {
+  it('drops the trailing zeros a numeric column brings with it', () => {
+    // The rate is stored as numeric(6,3) and arrives as "20.000"; nobody
+    // writes that on a quote.
+    expect(formatRatePercent('20.000')).toBe('20');
+    expect(formatRatePercent('20')).toBe('20');
+  });
+
+  it('keeps a genuinely fractional rate', () => {
+    expect(formatRatePercent('12.500')).toBe('12.5');
+    expect(formatRatePercent('0.125')).toBe('0.125');
+  });
+
+  it('reaches the document', async () => {
+    const vat: VatConfig = { treatment: 'standard-rate', ratePercent: '20.000', status: 'confirmed' };
+    const text = await documentText(input({ vat }));
+    expect(text).toContain('VAT at 20%');
+    expect(text).not.toContain('20.000%');
   });
 });

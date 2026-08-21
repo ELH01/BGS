@@ -69,6 +69,8 @@ export interface BankOperator {
   id: string;
   organisationId: string;
   name: string;
+  invoicingAddress: string | null;
+  vat: { registered: boolean; registrationNumber: string | null; ratePercent: string };
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;

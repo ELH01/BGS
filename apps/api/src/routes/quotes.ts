@@ -20,6 +20,7 @@ import {
   recordSale,
   replaceAllocationLines,
   reverseSale,
+  deleteQuote,
   updateQuoteDetails,
   updateQuoteStatus,
   updateSaleRegisterDate,
@@ -542,6 +543,55 @@ export default async function quoteRoutes(app: FastifyInstance): Promise<void> {
 
       if (!outcome) return reply.code(404).send({ error: 'Quote not found.' });
       return { quote: outcome };
+    },
+  );
+
+  /**
+   * Delete a quote.
+   *
+   * Quotes are kept unless deliberately removed: a cancelled one still records
+   * that a deal did not convert. This exists for the ones that are genuinely
+   * clutter — a duplicate, a test, an enquiry that went nowhere.
+   */
+  app.delete<{ Params: { id: string } }>(
+    '/api/quotes/:id',
+    { onRequest: [app.requireWriteAccess] },
+    async (request, reply) => {
+      const auth = request.auth!;
+
+      const outcome = await withTenant(auth.organisationId, async (tx) => {
+        const quote = await getQuote(tx, request.params.id, config.staleQuoteDays);
+        if (!quote) return { deleted: false, reason: 'not-found' as const };
+
+        const result = await deleteQuote(tx, request.params.id);
+        if (result.deleted) {
+          // Written before the row goes, and kept afterwards: the audit log is
+          // append-only, so the record of the deletion outlives the quote.
+          await writeAudit(tx, {
+            organisationId: auth.organisationId,
+            entityType: 'quote',
+            entityId: request.params.id,
+            action: 'deleted',
+            fromStatus: quote.status,
+            actorUserId: auth.userId,
+            detail: { reference: quote.reference, lineCount: quote.lines.length },
+          });
+        }
+        return result;
+      });
+
+      if (outcome.deleted) return { ok: true };
+      if (outcome.reason === 'not-found') return reply.code(404).send({ error: 'Quote not found.' });
+      if (outcome.reason === 'sold') {
+        return reply.code(409).send({
+          error:
+            'This quote has been sold, and its allocation is the record of what was retired from stock. Reverse the sale first if it really should be removed.',
+        });
+      }
+      return reply.code(409).send({
+        error:
+          'This quote has a sale against it, which explains stock having moved. It cannot be deleted.',
+      });
     },
   );
 

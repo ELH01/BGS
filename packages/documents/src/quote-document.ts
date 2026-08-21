@@ -35,6 +35,12 @@ export interface QuoteBranding {
   contact: string | null;
   /** Hex, e.g. "#2F5D3A". Falls back to a neutral dark tone when absent. */
   accentColour: string | null;
+  /**
+   * Where payment is sent, when it differs from the address in the letterhead.
+   * A registered office and a trading address are often not the same, and a
+   * document someone will pay against needs the former.
+   */
+  invoicingAddress?: string | null | undefined;
   /** Raw image bytes and their type, when the operator has uploaded a logo. */
   logo?: { data: Uint8Array; type: 'png' | 'jpg' | 'gif' | 'bmp' } | undefined;
 }
@@ -338,6 +344,20 @@ export function buildQuoteDocument(input: QuoteDocumentInput): Document {
       rows,
     }),
   );
+
+  if (input.branding.invoicingAddress) {
+    children.push(
+      new Paragraph({
+        spacing: { before: 160 },
+        children: [new TextRun({ text: 'Invoicing address', bold: true, size: 18, color: '5F6B60' })],
+      }),
+    );
+    for (const line of input.branding.invoicingAddress.split('\n')) {
+      children.push(
+        new Paragraph({ children: [new TextRun({ text: line, size: 18, color: '5F6B60' })] }),
+      );
+    }
+  }
 
   if (vat.registrationNumber) {
     children.push(

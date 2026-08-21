@@ -191,8 +191,9 @@ them is flagged wherever it appears.
 |---|---|---|
 | Spatial risk multipliers | `packages/core/src/spatial-multiplier.ts` | Placeholder |
 | Trading rule definitions | `packages/core/src/trading-rules.ts` | From public DEFRA guidance, unconfirmed |
-| Buffer above 10% net gain | `NET_GAIN_BUFFER_PERCENT`, default `0.1` | Suggested |
-| Stale-quote threshold | `STALE_QUOTE_DAYS`, default `60` | Suggested |
+| VAT | Per bank operator | Settled — see below |
+| Buffer above the shortfall | `NET_GAIN_BUFFER_PERCENT`, default `0` | Settled — target is the shortfall exactly |
+| Stale-quote threshold | `STALE_QUOTE_DAYS`, default `60` | Advisory only; quotes are kept until deleted |
 
 | Metric 4.0 cell mapping | `packages/metric/src/versions/metric-4-0.ts` | Transcribed from a working tool, five discrepancies open |
 | Metric 4.0 dropdown wording | `packages/metric/src/labels.ts` | Placeholder wording — the highest-risk unconfirmed item, see below |
@@ -244,6 +245,51 @@ The supplying operator is chosen when the quote is created. Everything else
 follows: the allocation table offers only that operator's stock, saving a line
 that reaches another operator's parcel is refused by name, and the document's
 branding is read straight off the quote with nothing to infer.
+
+## VAT belongs to the operator, not to the platform
+
+A quotation goes out under the bank operator whose stock it supplies, so it is
+**their** VAT position that governs it. Cosdon may not be registered while a
+client bank is, and the same platform has to produce a correct document either
+way — which one global setting cannot do.
+
+Each operator records whether it is registered, its number, its rate, and an
+invoicing address for where payment is sent. Registration is explicit rather
+than inferred from having a number, because "no number recorded yet" and "not
+registered" are different states, and treating the first as the second would
+quietly drop VAT from a registered operator's quote.
+
+Quotes always print three figures: total excluding VAT, the VAT, and total
+including VAT. Where the operator is not registered the lines still appear, with
+the VAT line reading "not charged" and a note saying so — a missing line reads
+as an oversight, an explicit zero reads as a decision.
+
+## What a quote targets
+
+The target is the stated shortfall **exactly**. The metric workbook is what
+confirms whether the resulting figure passes, so there is no reason for this
+platform to second-guess it with a margin of its own.
+
+The buffer mechanism remains and is one environment variable away
+(`NET_GAIN_BUFFER_PERCENT`) if quotes start coming back short after an LPA
+re-rounds them.
+
+## Quotes are kept until you delete them
+
+Nothing expires or disappears on its own. A quote past its stale threshold is
+flagged and nothing more; a cancelled one stays as the record of a deal that did
+not convert.
+
+Deletion is available and deliberate — for duplicates, tests, enquiries that
+went nowhere. A **sold** quote is refused: its allocation is the record of what
+was retired from stock, and removing it would leave the retirement unexplained.
+So is one with a reversed sale against it, for the same reason. The deletion
+itself is written to the audit log, which is append-only, so the record outlives
+the quote.
+
+A reservation asks how long the stock is held for. Nothing is released
+automatically when that date passes — the quote is flagged as expired and waits
+for you, so stock never quietly frees up underneath a deal you thought you had.
 
 ## Uploads
 

@@ -6,7 +6,6 @@ import {
   positionExportFilename,
   quoteTotals,
   type PositionStatus,
-  type VatConfig,
 } from '@bgs/documents';
 import {
   getAllocationPositions,
@@ -25,16 +24,6 @@ const querySchema = z.object({
   statuses: z.string().optional(),
 });
 
-function vatConfig(): VatConfig {
-  const treatment = process.env['VAT_TREATMENT'] === 'none' ? 'none' : 'standard-rate';
-  const registrationNumber = process.env['VAT_REGISTRATION_NUMBER'];
-  return {
-    treatment,
-    ratePercent: process.env['VAT_RATE_PERCENT'] ?? '20',
-    ...(registrationNumber ? { registrationNumber } : {}),
-    status: process.env['VAT_TREATMENT'] ? 'confirmed' : 'unconfirmed',
-  };
-}
 
 export default async function positionRoutes(app: FastifyInstance): Promise<void> {
   const config = loadApiConfig();
@@ -87,7 +76,6 @@ export default async function positionRoutes(app: FastifyInstance): Promise<void
         return reply.code(404).send({ error: 'Bank operator not found.' });
       }
 
-      const vat = vatConfig();
       const generatedAt = new Date();
 
       const workbook = await buildPositionWorkbook({
@@ -99,9 +87,14 @@ export default async function positionRoutes(app: FastifyInstance): Promise<void
         },
         allocations: data.allocations,
         quotes: data.quotes.map((quote) => {
-          // VAT is applied at render time from the stored net figure, the same
-          // way the quote document does it, so the two agree.
-          const totals = quoteTotals([Money.of(quote.totalExcludingVat)], vat);
+          // VAT per quote, from the operator that quote supplies — the same
+          // source the quote document reads, so the two agree. An operator that
+          // is not registered contributes no VAT rather than a default rate.
+          const totals = quoteTotals([Money.of(quote.totalExcludingVat)], {
+            treatment: quote.vatRegistered ? 'standard-rate' : 'none',
+            ratePercent: quote.vatRatePercent ?? '0',
+            status: 'confirmed',
+          });
           return {
             ...quote,
             isStale:

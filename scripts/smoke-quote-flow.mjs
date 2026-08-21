@@ -105,8 +105,8 @@ await step('create a quote needing 5 area units, naming the supplying bank', asy
   await page.waitForSelector('text=/supplied by Cosdon Habitat Banks/');
 });
 
-await step('table shows the buffered target, not the bare shortfall', async () => {
-  await page.waitForSelector('text=/of 5.0050 units/');
+await step('table shows the shortfall as its target', async () => {
+  await page.waitForSelector('text=/of 5.0000 units/');
 });
 
 await step('trading rules filtered the list (no unfiltered warning)', async () => {
@@ -118,7 +118,7 @@ await step('typing units updates the percentage and the running total', async ()
   const units = page.locator('table input.numeric').first();
   await units.fill('2.0');
   await units.blur();
-  await page.waitForSelector('text=/2.0000 of 5.0050 units/');
+  await page.waitForSelector('text=/2.0000 of 5.0000 units/');
 });
 
 await step('typing a percentage back-computes the units', async () => {
@@ -159,11 +159,16 @@ await step('quoted allocation does not reduce availability', async () => {
   if (available.trim() !== '6.0000') throw new Error(`expected F3 available 6.0000, got ${available}`);
 });
 
-await step('reserve, and availability drops', async () => {
+await step('reserve until a date, and availability drops', async () => {
   await page.getByRole('link', { name: 'Quotes' }).click();
   await page.locator('a', { hasText: 'CC-0001' }).click();
+
+  // Reserving asks how long the stock is held for; taking stock out of
+  // circulation is a decision worth making each time rather than defaulting.
+  page.once('dialog', (dialog) => dialog.accept('2026-11-30'));
   await page.getByRole('button', { name: 'Reserve' }).click();
   await page.waitForSelector('.badge:has-text("Reserved")');
+  await page.waitForSelector('text=/held until 30\\/11\\/2026/');
 });
 
 await step('history records both transitions', async () => {

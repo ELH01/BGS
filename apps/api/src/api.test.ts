@@ -335,10 +335,13 @@ describe('configuration reporting (§5)', () => {
     const client = await signUp('Config Org', 'config-org', 'config@example.test');
     const response = await client.get('/api/config');
 
+    // The multiplier values and the trading rules are still awaiting
+    // confirmation. The buffer and the stale threshold are settled: the target
+    // is the shortfall itself, and stale is advisory only.
     expect(response.body.spatialRisk.status).toBe('unconfirmed');
     expect(response.body.tradingRules.status).toBe('unconfirmed');
-    expect(response.body.netGain.bufferConfirmed).toBe(false);
-    expect(response.body.quotes.staleThresholdConfirmed).toBe(false);
+    expect(response.body.netGain.bufferConfirmed).toBe(true);
+    expect(response.body.quotes.staleThresholdConfirmed).toBe(true);
   });
 
   it('reports each module’s decimal places', async () => {

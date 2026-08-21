@@ -736,6 +736,10 @@ export interface QuoteDocumentSource {
     brandingAddress: string | null;
     brandingContact: string | null;
     brandingAccentColour: string | null;
+    invoicingAddress: string | null;
+    vatRegistered: boolean;
+    vatRegistrationNumber: string | null;
+    vatRatePercent: string;
     brandingLogoFileId: string | null;
     unitsSupplied: string;
   }>;
@@ -776,10 +780,15 @@ export async function getQuoteDocumentSource(
     branding_contact: string | null;
     branding_accent_colour: string | null;
     branding_logo_file_id: string | null;
+    invoicing_address: string | null;
+    vat_registered: boolean;
+    vat_registration_number: string | null;
+    vat_rate_percent: string;
     units_supplied: string;
   }>(
     `SELECT o.id, o.name, o.branding_company_name, o.branding_address, o.branding_contact,
             o.branding_accent_colour, o.branding_logo_file_id,
+            o.invoicing_address, o.vat_registered, o.vat_registration_number, o.vat_rate_percent,
             sum(l.raw_quantity)::text AS units_supplied
        FROM allocation_line l
        JOIN stock_parcel p ON p.id = l.stock_parcel_id
@@ -820,6 +829,10 @@ export async function getQuoteDocumentSource(
       brandingContact: row.branding_contact,
       brandingAccentColour: row.branding_accent_colour,
       brandingLogoFileId: row.branding_logo_file_id,
+      invoicingAddress: row.invoicing_address,
+      vatRegistered: row.vat_registered,
+      vatRegistrationNumber: row.vat_registration_number,
+      vatRatePercent: row.vat_rate_percent,
       unitsSupplied: row.units_supplied,
     })),
     lineDetails: detailRows.map((row) => ({
@@ -829,4 +842,41 @@ export async function getQuoteDocumentSource(
       distinctiveness: row.distinctiveness,
     })),
   };
+}
+
+/**
+ * Delete a quote outright.
+ *
+ * Quotes are retained by default — a cancelled one is part of the conversion
+ * record — so this is a deliberate act rather than tidying. A sold quote is
+ * refused: its allocation is the record of what was retired from stock, and
+ * removing it would leave the retirement unexplained. Reverse the sale first.
+ */
+export async function deleteQuote(
+  db: Queryable,
+  quoteId: string,
+): Promise<{ deleted: boolean; reason?: string }> {
+  const { rows } = await db.query<{ status: QuoteStatus; reference: string }>(
+    'SELECT status, reference FROM quote WHERE id = $1',
+    [quoteId],
+  );
+  const quote = rows[0];
+  if (!quote) return { deleted: false, reason: 'not-found' };
+
+  if (quote.status === 'sold') {
+    return { deleted: false, reason: 'sold' };
+  }
+
+  const { rows: sales } = await db.query<{ id: string }>(
+    'SELECT id FROM sale_record WHERE quote_id = $1',
+    [quoteId],
+  );
+  if (sales.length > 0) {
+    // A reversed sale still leaves a record behind, and that record is the
+    // explanation for stock having moved and come back.
+    return { deleted: false, reason: 'has-sale' };
+  }
+
+  await db.query('DELETE FROM quote WHERE id = $1', [quoteId]);
+  return { deleted: true };
 }

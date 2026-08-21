@@ -230,7 +230,7 @@ describe('the position export', () => {
     expect(available).toBeCloseTo(14.995, 4);
   });
 
-  it('gives each quote its total with and without VAT', async () => {
+  it('gives each quote its total with and without VAT, from its own operator', async () => {
     const response = await call('GET', '/api/positions/export');
     const workbook = await readWorkbook(response.rawPayload);
     const sheet = workbook.getWorksheet('Quotes')!;
@@ -240,11 +240,33 @@ describe('the position export', () => {
     expect(headers).toContain('VAT');
     expect(headers).toContain('Total including VAT');
 
+    // Cosdon Habitat Banks is not VAT registered, so no VAT is added.
     const net = sheet.getRow(2).getCell(headers.indexOf('Total excluding VAT')).value as number;
     const vat = sheet.getRow(2).getCell(headers.indexOf('VAT')).value as number;
     const gross = sheet.getRow(2).getCell(headers.indexOf('Total including VAT')).value as number;
+    expect(vat).toBe(0);
+    expect(gross).toBeCloseTo(net, 2);
+  });
+
+  it('adds VAT for a quote whose operator is registered', async () => {
+    await json('PUT', `/api/bank-operators/${cosdonOperatorId}`, {
+      name: 'Cosdon Habitat Banks',
+      vat: { registered: true, registrationNumber: 'GB999888777', ratePercent: '20' },
+    });
+
+    const response = await call('GET', '/api/positions/export');
+    const workbook = await readWorkbook(response.rawPayload);
+    const sheet = workbook.getWorksheet('Quotes')!;
+    const headers = sheet.getRow(1).values as string[];
+
+    const net = sheet.getRow(2).getCell(headers.indexOf('Total excluding VAT')).value as number;
+    const vat = sheet.getRow(2).getCell(headers.indexOf('VAT')).value as number;
     expect(vat).toBeCloseTo(net * 0.2, 2);
-    expect(gross).toBeCloseTo(net + vat, 2);
+
+    await json('PUT', `/api/bank-operators/${cosdonOperatorId}`, {
+      name: 'Cosdon Habitat Banks',
+      vat: { registered: false },
+    });
   });
 
   it('leaves cancelled quotes out by default', async () => {

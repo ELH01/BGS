@@ -42,6 +42,18 @@ export interface BankOperator {
     logoFileId: string | null;
     accentColour: string | null;
   };
+  /**
+   * This operator's VAT position, which governs any quote drawn on its stock.
+   * Held here rather than platform-wide because a quote goes out under the
+   * operator, and two operators may differ.
+   */
+  vat: {
+    registered: boolean;
+    registrationNumber: string | null;
+    ratePercent: string;
+  };
+  /** Where payment is sent. Falls back to the branding address on documents. */
+  invoicingAddress: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -59,6 +71,10 @@ interface BankOperatorRow {
   branding_contact: string | null;
   branding_logo_file_id: string | null;
   branding_accent_colour: string | null;
+  vat_registered: boolean;
+  vat_registration_number: string | null;
+  vat_rate_percent: string;
+  invoicing_address: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -79,6 +95,12 @@ function toBankOperator(row: BankOperatorRow): BankOperator {
       logoFileId: row.branding_logo_file_id,
       accentColour: row.branding_accent_colour,
     },
+    vat: {
+      registered: row.vat_registered,
+      registrationNumber: row.vat_registration_number,
+      ratePercent: row.vat_rate_percent,
+    },
+    invoicingAddress: row.invoicing_address,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -109,6 +131,10 @@ export interface BankOperatorInput {
   brandingContact?: string | null | undefined;
   brandingLogoFileId?: string | null | undefined;
   brandingAccentColour?: string | null | undefined;
+  vatRegistered?: boolean | undefined;
+  vatRegistrationNumber?: string | null | undefined;
+  vatRatePercent?: string | undefined;
+  invoicingAddress?: string | null | undefined;
 }
 
 export async function createBankOperator(db: Queryable, input: BankOperatorInput): Promise<BankOperator> {
@@ -116,8 +142,9 @@ export async function createBankOperator(db: Queryable, input: BankOperatorInput
     `INSERT INTO bank_operator (
         organisation_id, name, contact_name, contact_email, contact_phone, notes,
         branding_company_name, branding_address, branding_contact,
-        branding_logo_file_id, branding_accent_colour
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        branding_logo_file_id, branding_accent_colour,
+        vat_registered, vat_registration_number, vat_rate_percent, invoicing_address
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
      RETURNING *`,
     [
       input.organisationId,
@@ -131,6 +158,10 @@ export async function createBankOperator(db: Queryable, input: BankOperatorInput
       input.brandingContact ?? null,
       input.brandingLogoFileId ?? null,
       input.brandingAccentColour ?? null,
+      input.vatRegistered ?? false,
+      input.vatRegistrationNumber ?? null,
+      input.vatRatePercent ?? '20',
+      input.invoicingAddress ?? null,
     ],
   );
   const row = rows[0];
@@ -147,7 +178,9 @@ export async function updateBankOperator(
     `UPDATE bank_operator SET
         name = $2, contact_name = $3, contact_email = $4, contact_phone = $5, notes = $6,
         branding_company_name = $7, branding_address = $8, branding_contact = $9,
-        branding_logo_file_id = $10, branding_accent_colour = $11
+        branding_logo_file_id = $10, branding_accent_colour = $11,
+        vat_registered = $12, vat_registration_number = $13,
+        vat_rate_percent = $14, invoicing_address = $15
       WHERE id = $1
       RETURNING *`,
     [
@@ -162,6 +195,10 @@ export async function updateBankOperator(
       input.brandingContact ?? null,
       input.brandingLogoFileId ?? null,
       input.brandingAccentColour ?? null,
+      input.vatRegistered ?? false,
+      input.vatRegistrationNumber ?? null,
+      input.vatRatePercent ?? '20',
+      input.invoicingAddress ?? null,
     ],
   );
   return rows[0] ? toBankOperator(rows[0]) : null;

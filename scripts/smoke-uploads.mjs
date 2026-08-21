@@ -190,9 +190,9 @@ await step("download the developer's metric with the off-site tab filled in", as
   if (habitat !== 'Other neutral grassland') {
     throw new Error(`Expected the habitat type in E11, found ${JSON.stringify(habitat)}.`);
   }
-  // 5.005 of 20 units is a quarter of the parcel, so a quarter of its 10 ha.
-  if (Math.abs(Number(area) - 2.5025) > 0.0001) {
-    throw new Error(`Expected 2.5025 ha in G11, found ${JSON.stringify(area)}.`);
+  // 5 of 20 units is a quarter of the parcel, so a quarter of its 10 ha.
+  if (Math.abs(Number(area) - 2.5) > 0.0001) {
+    throw new Error(`Expected 2.5 ha in G11, found ${JSON.stringify(area)}.`);
   }
   console.log(`      wrote ${habitat} at ${area} ha into D-2`);
 });

@@ -1,0 +1,378 @@
+{
+  "generated_utc": "2026-09-12T18:45:05+00:00",
+  "config_file": "/home/user/BGS/tools/bog-orchid-model/config.yaml",
+  "crs": "EPSG:27700",
+  "resolution_m": 10.0,
+  "grid": {
+    "width": 860,
+    "height": 660,
+    "bounds": [
+      259200.0,
+      85700.0,
+      267800.0,
+      92300.0
+    ]
+  },
+  "weights_used": {
+    "sphagnum": 0.24999999999999994,
+    "lateral_flow": 0.29999999999999993,
+    "wetness": 0.14999999999999997,
+    "watercourse_proximity": 0.14999999999999997,
+    "geology": 0.04999999999999999,
+    "elevation": 0.09999999999999998
+  },
+  "variables_dropped": {},
+  "scoring_method": "weighted_mean",
+  "elevation_band": [
+    187.095947265625,
+    337.095947265625,
+    491.0362854003906,
+    560.0
+  ],
+  "filter_stats": {
+    "priority_habitat": {
+      "cells_passed": 375742.0,
+      "percent_of_area": 66.19837914023961
+    },
+    "peat_present": {
+      "cells_passed": 323072.0,
+      "percent_of_area": 56.91895701198027,
+      "min_depth_cm": 10.0
+    },
+    "combined": {
+      "cells_passed": 307010.0,
+      "percent_of_area": 54.08914728682171
+    }
+  },
+  "calibration_passed": true,
+  "calibration_warnings": [],
+  "candidates": 50,
+  "provenance": {
+    "dtm": "/tmp/claude-0/ex/data/raw/dtm.tif",
+    "priority_habitat": {
+      "path": "/tmp/claude-0/ex/data/raw/priority_habitats.gpkg",
+      "field": "Main_Habit",
+      "polygons_selected": 811
+    },
+    "peat_depth": {
+      "path": "/tmp/claude-0/ex/data/raw/peat_depth.tif",
+      "scale_to_cm": 1.0
+    },
+    "sphagnum_flag": {
+      "path": "/tmp/claude-0/ex/data/raw/peat_vegetation.tif",
+      "classes": [
+        3
+      ]
+    },
+    "rivers": {
+      "path": "/tmp/claude-0/ex/data/raw/os_open_rivers.gpkg",
+      "features": 4
+    },
+    "geology": {
+      "path": "/tmp/claude-0/ex/data/raw/bgs_bedrock.gpkg",
+      "field": "RCS_D",
+      "class_counts": {
+        "acidic": 1,
+        "intermediate": 0,
+        "base_rich": 1
+      }
+    }
+  },
+  "notes": [
+    "DTM: 567,600 valid cells, 271-680 m.",
+    "Priority Habitat: kept 811 of 811 polygons matching ['Blanket Bog', 'Upland Flushes, Fens and Swamps'] on field 'Main_Habit'.",
+    "Priority Habitat extent buffered outwards by 50 m.",
+    "Peat depth: 567,600 valid cells, 0.0-184.0 cm (after scaling).",
+    "Sphagnum-dominated: 26,977 cells from classes [3].",
+    "Unnamed SX68 site (annual monitoring 1994-2012): NOT excluded - its reference is only precise to 10,000 m, and excluding a square that size would discard far more ground than the record justifies. Candidates falling inside it are flagged in the `within_coarse_record` column instead, because one of them may simply be this site.",
+    "Excluded a 500 m radius around 2 precisely-located known record(s).",
+    "91 cells share the top score (1.0000) exactly - the trapezoid plateaus mean many cells are equally suitable by the model's own logic. Ranking among them is broken by mean suitability within 100 m (see the `patch_score` column), not by raster order."
+  ],
+  "config_snapshot": {
+    "project": {
+      "crs": "EPSG:27700",
+      "resolution_m": 10,
+      "study_area_bbox": [
+        248000.0,
+        52000.0,
+        284000.0,
+        98000.0
+      ]
+    },
+    "known_sites": [
+      {
+        "name": "Raybarrow Pool area",
+        "grid_ref": "SX 64524 90050",
+        "precision_m": 10,
+        "last_seen": null,
+        "source": "Supplied by project lead.",
+        "use_for_calibration": true,
+        "notes": "Northern Dartmoor valley mire complex. Note this falls ~50 m north of the SX68/SX69 hectad line, while A New Flora of Devon places both extant Dartmoor sites in SX68; the discrepancy is immaterial at this resolution but is worth confirming against the original record card.\n"
+      },
+      {
+        "name": "Steeperton Brook",
+        "grid_ref": "SX 62406 89005",
+        "precision_m": 10,
+        "last_seen": 1998,
+        "source": "Supplied by project lead.",
+        "use_for_calibration": true,
+        "notes": "Matches the A New Flora of Devon record \"Steeperton Brook, SX625889\" (N. Baldock 1984; six plants 1997, five 1998, W.H. Tucker) to within ~155 m, so the two are taken to be the same locality.\n"
+      },
+      {
+        "name": "Unnamed SX68 site (annual monitoring 1994-2012)",
+        "grid_ref": "SX 6 8",
+        "precision_m": 10000,
+        "last_seen": 2012,
+        "source": "A New Flora of Devon - recorded annually from 1994, max 25 plants in 2000 \"scattered over more than one flush\" (R.D. Hutchings & R. Avery); five plants 2009 (N. Baldock); six plants 2011 and 2012 (R.E.N. Smith).\n",
+        "use_for_calibration": false,
+        "notes": "IMPORTANT: this is a real, recently-monitored population that the project brief did not list, but the only published locality is the 10 km square SX68, which is far too coarse to calibrate against or to exclude from the candidate list. The grid ref here is the centre of SX68 and is a PLACEHOLDER. Obtain the precise reference from the BSBI Distribution Database or the Devon Biodiversity Records Centre and replace it - it is the single highest-value input still missing from this model.\n"
+      },
+      {
+        "name": "Webburn Valley below Blackaton Tor (historic)",
+        "grid_ref": "SX 69 78",
+        "precision_m": 1000,
+        "last_seen": 1938,
+        "source": "A New Flora of Devon - two plants, 1938, L.A. Harvey.",
+        "use_for_calibration": false,
+        "notes": "Historic and almost certainly lost, and at 1 km precision. Retained because an eastern-Dartmoor record widens the habitat envelope the model should be willing to consider, and because the site is worth re-checking in the field.\n"
+      }
+    ],
+    "hard_filters": {
+      "priority_habitat": {
+        "enabled": true,
+        "layer": "priority_habitat",
+        "include": [
+          "Blanket Bog",
+          "Upland Flushes, Fens and Swamps"
+        ],
+        "buffer_m": 50,
+        "notes": "Step 1 of the brief: bound the search to mire and flush polygons. This removes the large majority of the moor immediately.\n"
+      },
+      "peat_present": {
+        "enabled": true,
+        "layer": "peat_depth",
+        "min_depth_cm": 10,
+        "notes": "BSBI: acidic, extremely infertile peat. Treated as a hard requirement. 10 cm is a deliberately permissive threshold - it excludes mineral ground without excluding the thin peats at flush margins.\n"
+      }
+    },
+    "variables": {
+      "sphagnum": {
+        "weight": 0.25,
+        "layer": "sphagnum_flag",
+        "curve": {
+          "type": "boolean",
+          "true_score": 1.0,
+          "false_score": 0.25
+        },
+        "notes": "STRONG. BSBI: typically on the margins of Sphagnum hummocks. Non-Sphagnum peat scores 0.25 rather than 0, because the species also occurs on open moist peat and because the peat map's vegetation classification is modelled, not surveyed - a hard zero would trust it further than it deserves.\n"
+      },
+      "lateral_flow": {
+        "weight": 0.3,
+        "combine": "product",
+        "components": {
+          "flow_accumulation": {
+            "layer": "flow_accumulation_log10",
+            "curve": {
+              "type": "trapezoid",
+              "a": 1.0,
+              "b": 1.8,
+              "c": 3.3,
+              "d": 4.3
+            },
+            "notes": "log10 of upslope cell count. Rises from ~10 cells (too little water to sustain a flush) and falls away above ~2000 cells, by which point the feature is a stream channel rather than a flush.\n"
+          },
+          "slope": {
+            "layer": "slope_deg",
+            "curve": {
+              "type": "trapezoid",
+              "a": 0.3,
+              "b": 1.0,
+              "c": 5.0,
+              "d": 12.0
+            },
+            "notes": "Degrees. Zero slope means pooling, not throughflow, so flat ground is penalised; above ~12 degrees water moves too fast and peat does not hold. The 1-5 degree plateau is the classic Dartmoor valley-mire and flush gradient.\n"
+          }
+        },
+        "notes": "STRONG. BSBI: \"boggy ground with lateral flow of water\", explicitly not standing water. Deliberately used in preference to TWI alone, which flags flat pooling hollows.\n"
+      },
+      "wetness": {
+        "weight": 0.15,
+        "layer": "twi",
+        "curve": {
+          "type": "trapezoid",
+          "a": 4.0,
+          "b": 6.5,
+          "c": 9.5,
+          "d": 13.0
+        },
+        "notes": "STRONG, and deliberately mid-range. Topographic wetness index. The species sits on hummock margins and moist peat, NOT in the wettest pools, so peak TWI must not score as most suitable. The upper shoulder is the important half of this curve.\n"
+      },
+      "watercourse_proximity": {
+        "weight": 0.15,
+        "layer": "distance_to_water_m",
+        "curve": {
+          "type": "trapezoid",
+          "a": 0.0,
+          "b": 15.0,
+          "c": 150.0,
+          "d": 600.0
+        },
+        "notes": "MODERATE. Distance in metres to the OS Open Rivers network. Near-but-not- on: the first 15 m rise encodes that the channel itself is open water, not flush. Set `a: -1, b: -1` to make this a plain proximity decay if you disagree with that shoulder.\n"
+      },
+      "geology": {
+        "weight": 0.05,
+        "layer": "base_richness",
+        "curve": {
+          "type": "categorical",
+          "mapping": {
+            "0": 0.7,
+            "1": 0.75,
+            "2": 0.9,
+            "3": 1.0
+          },
+          "default": 0.7
+        },
+        "notes": "MINOR, and deliberately a soft weight rather than a filter. BSBI: acidic, extremely infertile peat, but occasionally moderately base-rich flushes. Acid ground therefore still scores well (0.75); base-rich gets a small lift. On Dartmoor granite almost everything will be class 1, so this variable will mostly do nothing - which is the intended behaviour.\n"
+      },
+      "elevation": {
+        "weight": 0.1,
+        "layer": "elevation_m",
+        "curve": {
+          "type": "trapezoid",
+          "a": 200.0,
+          "b": 300.0,
+          "c": 500.0,
+          "d": 600.0
+        },
+        "notes": "MINOR. The c.500 m British maximum is not Dartmoor-specific, so the band is derived from the known sites instead. Weight kept low precisely because two points cannot define an elevation preference - this variable exists to damp implausible extremes, not to drive the result.\n"
+      },
+      "nvc": {
+        "weight": 0.25,
+        "enabled": false,
+        "layer": "nvc_m1_m21",
+        "curve": {
+          "type": "boolean",
+          "true_score": 1.0,
+          "false_score": 0.4
+        },
+        "notes": "STRONG if available. Direct match to M1 (Sphagnum auriculatum bog pool) or M21 (Narthecium ossifragum-Sphagnum papillosum valley mire). Not confirmed to exist for Dartmoor in accessible form - enquire with Natural England / Dartmoor NPA. Absence of data is scored 0.4, not 0.\n"
+      }
+    },
+    "scoring": {
+      "method": "weighted_mean",
+      "gamma": 1.0
+    },
+    "calibration": {
+      "elevation": {
+        "derive_from_sites": true,
+        "pad_m": 50.0,
+        "taper_m": 150.0,
+        "hard_max_m": 560.0
+      },
+      "min_expected_percentile": 90.0
+    },
+    "candidates": {
+      "count": 50,
+      "exclusion_buffer_m": 500.0,
+      "max_record_precision_for_exclusion_m": 1000.0,
+      "min_separation_m": 250.0,
+      "min_score": 0.5,
+      "tie_break": "patch_mean",
+      "patch_radius_m": 100.0
+    },
+    "sources": {
+      "boundary": {
+        "mode": "auto",
+        "kind": "arcgis_featureserver",
+        "url": "https://services.arcgis.com/JJzESW51TqeY9uat/arcgis/rest/services/National_Parks_England/FeatureServer/0",
+        "where": "NAME LIKE '%Dartmoor%'",
+        "filename": "dartmoor_boundary.gpkg",
+        "licence": "OGL - Natural England",
+        "notes": "Falls back to project.study_area_bbox if unavailable."
+      },
+      "priority_habitat": {
+        "mode": "auto",
+        "kind": "arcgis_featureserver",
+        "url": "https://services.arcgis.com/JJzESW51TqeY9uat/arcgis/rest/services/Priority_Habitats_Inventory_England/FeatureServer/0",
+        "filename": "priority_habitats.gpkg",
+        "licence": "OGL - Natural England",
+        "notes": "Queried by bounding box and paged. Verify the layer index and the main habitat field name with `preflight --probe`; Natural England renumber these services from time to time.\n"
+      },
+      "dtm": {
+        "mode": "manual",
+        "filename": "dtm.tif",
+        "portal": "https://environment.data.gov.uk/survey",
+        "licence": "OGL - Environment Agency",
+        "notes": "LIDAR Composite DTM, 1 m (2 m where 1 m is unavailable), 5 km tiles. Download the tiles covering the study area, then either place a single mosaicked GeoTIFF here or drop the tiles in data/raw/dtm_tiles/ and let `acquire` mosaic them. 10 m Composite DTM is an acceptable fallback and is a single small download, but the flush-scale terrain signal this model depends on is much weaker at 10 m.\n"
+      },
+      "peat": {
+        "mode": "manual",
+        "filename": "peat_depth.tif",
+        "portal": "https://england-peat-map-portal-ncea.hub.arcgis.com/",
+        "licence": "OGL - Natural England (England Peat Map, NERR149, 2025)",
+        "notes": "Two layers are needed: peaty soil depth (-> peat_depth.tif) and the vegetation map from which the Sphagnum-dominated class is taken (-> peat_vegetation.tif). Downloaded as an ESRI File Geodatabase; export the rasters to GeoTIFF. Record which vegetation class codes count as Sphagnum-dominated in `layers.sphagnum_classes` below.\n"
+      },
+      "peat_vegetation": {
+        "mode": "manual",
+        "filename": "peat_vegetation.tif",
+        "portal": "https://england-peat-map-portal-ncea.hub.arcgis.com/",
+        "licence": "OGL - Natural England",
+        "notes": "See `peat` above."
+      },
+      "rivers": {
+        "mode": "manual",
+        "filename": "os_open_rivers.gpkg",
+        "portal": "https://osdatahub.os.uk/downloads/open/OpenRivers",
+        "licence": "OGL - Ordnance Survey",
+        "notes": "OS Open Rivers, watercourse links. Free but behind a download form."
+      },
+      "geology": {
+        "mode": "manual",
+        "filename": "bgs_bedrock.gpkg",
+        "portal": "https://www.bgs.ac.uk/datasets/bgs-geology-625k-digmapgb-625/",
+        "licence": "BGS OpenGeoscience - check licence terms for your use",
+        "optional": true,
+        "notes": "Optional. If absent the geology variable is dropped and the remaining weights are renormalised - which on Dartmoor granite costs almost nothing.\n"
+      },
+      "nvc": {
+        "mode": "manual",
+        "filename": "nvc_communities.gpkg",
+        "portal": "Enquire: Natural England / Dartmoor National Park Authority",
+        "licence": "By agreement",
+        "optional": true,
+        "notes": "Not confirmed to exist in accessible form. Ask before assuming."
+      }
+    },
+    "layers": {
+      "peat_depth_scale_to_cm": 1.0,
+      "sphagnum_classes": [],
+      "base_richness": {
+        "acidic": [
+          "granite",
+          "sandstone",
+          "gritstone",
+          "quartzite",
+          "peat",
+          "rhyolite"
+        ],
+        "intermediate": [
+          "slate",
+          "mudstone",
+          "siltstone",
+          "shale",
+          "schist"
+        ],
+        "base_rich": [
+          "limestone",
+          "calcareous",
+          "calc-silicate",
+          "skarn",
+          "dolomite",
+          "chalk",
+          "basalt",
+          "tuff"
+        ]
+      }
+    }
+  }
+}

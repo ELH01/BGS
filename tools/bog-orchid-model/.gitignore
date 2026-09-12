@@ -1,0 +1,6 @@
+# Real downloaded data is large and separately licensed - never commit it.
+data/raw/
+outputs/
+__pycache__/
+*.pyc
+.pytest_cache/

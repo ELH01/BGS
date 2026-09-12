@@ -17,3 +17,6 @@ storage/
 
 # Launcher logs
 logs/
+
+# Example map committed with the bog orchid habitat model (see its README).
+!tools/bog-orchid-model/example_output/*.png

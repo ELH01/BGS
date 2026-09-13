@@ -25,6 +25,15 @@ DEFAULT_OUT = Path("outputs")
 def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="path to config.yaml")
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA, help="input data directory")
+    parser.add_argument(
+        "--sources",
+        type=Path,
+        default=None,
+        help=(
+            "overlay YAML supplying service endpoints and API key variable names "
+            f"(default: {DEFAULT_CONFIG.parent / 'sources.local.yaml'} if present)"
+        ),
+    )
 
 
 def _report(result, out_dir: Path) -> None:
@@ -56,7 +65,7 @@ def _report(result, out_dir: Path) -> None:
 
 
 def cmd_preflight(args) -> int:
-    config = load_config(args.config)
+    config = load_config(args.config, args.sources)
     statuses = preflight(config, args.data_dir)
     print(format_preflight(statuses))
 
@@ -97,7 +106,7 @@ def cmd_preflight(args) -> int:
 
 
 def cmd_acquire(args) -> int:
-    config = load_config(args.config)
+    config = load_config(args.config, args.sources)
     names = [args.source] if args.source else list(config.sources)
     failures = 0
     for name in names:
@@ -121,10 +130,79 @@ def cmd_acquire(args) -> int:
     return 1 if failures else 0
 
 
+def cmd_records(args) -> int:
+    """Fetch occurrence records and report which could strengthen calibration."""
+    import geopandas as gpd
+
+    config = load_config(args.config, args.sources)
+    source = config.sources.get("records")
+    if source is None:
+        print("  no `records` source is configured")
+        return 2
+
+    path = source_path(args.data_dir, source)
+    if not path.exists() or args.refresh:
+        try:
+            status = acquire_source(config, "records", args.data_dir, overwrite=True)
+        except Exception as exc:
+            print(f"  could not fetch records: {exc}")
+            return 2
+        print(f"  {status.detail}")
+    if not path.exists():
+        print("  no records returned for the study area")
+        return 0
+
+    frame = gpd.read_file(path).to_crs(config.crs)
+    if frame.empty:
+        print("  no records returned for the study area")
+        return 0
+
+    resolution = config.resolution_m
+    print(f"\n  {len(frame)} record(s) in the study area\n")
+    header = f"  {'year':>6} {'uncert':>8} {'grid ref':<16} {'km to nearest known':>20}  locality"
+    print(header)
+    print("  " + "-" * (len(header) - 2))
+
+    known = [(s.easting, s.northing, s.name) for s in config.known_sites]
+    promotable = 0
+    for _, row in frame.sort_values("year", na_position="first").iterrows():
+        easting, northing = row.geometry.x, row.geometry.y
+        distances = [
+            ((easting - e) ** 2 + (northing - n) ** 2) ** 0.5 for e, n, _ in known
+        ]
+        nearest = min(distances) if distances else float("nan")
+        uncertainty = row.get("coordinate_uncertainty_m")
+        precise = uncertainty is not None and not np.isnan(
+            float(uncertainty or np.nan)
+        ) and float(uncertainty) <= max(resolution, 100.0)
+        new = nearest > 500.0
+        if precise and new:
+            promotable += 1
+        flag = " <-- precise AND not near a known site" if (precise and new) else ""
+        print(
+            f"  {str(row.get('year') or '-'):>6} "
+            f"{str(uncertainty or '-'):>8} "
+            f"{str(row.get('grid_reference') or '-'):<16} "
+            f"{nearest / 1000:>20.2f}  {str(row.get('locality') or '')[:40]}{flag}"
+        )
+
+    print(
+        f"\n  {promotable} record(s) look precise enough to calibrate against and "
+        f"are not within 500 m of a site already in config.yaml."
+    )
+    if promotable:
+        print(
+            "  Review them, then add the ones you trust to `known_sites` with "
+            "`use_for_calibration: true`. Every extra precise record materially "
+            "strengthens the calibration step."
+        )
+    return 0
+
+
 def cmd_run(args) -> int:
     from .pipeline import PipelineError, run
 
-    config = load_config(args.config)
+    config = load_config(args.config, args.sources)
     try:
         result = run(config, args.data_dir, args.out_dir)
     except PipelineError as exc:
@@ -138,7 +216,7 @@ def cmd_demo(args) -> int:
     from .pipeline import run
     from .synthetic import BANNER, write_demo_data
 
-    config = load_config(args.config)
+    config = load_config(args.config, args.sources)
     data_dir = Path(args.data_dir)
     print(f"Generating synthetic layers in {data_dir / 'raw'} ...")
     write_demo_data(config, data_dir, seed=args.seed)
@@ -194,6 +272,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--source", help="fetch only this source")
     p.add_argument("--overwrite", action="store_true")
     p.set_defaults(func=cmd_acquire)
+
+    p = subparsers.add_parser(
+        "records", help="fetch occurrence records and report calibration candidates"
+    )
+    _add_common(p)
+    p.add_argument("--refresh", action="store_true", help="refetch rather than use the cache")
+    p.set_defaults(func=cmd_records)
 
     p = subparsers.add_parser("run", help="run the model on real data")
     _add_common(p)

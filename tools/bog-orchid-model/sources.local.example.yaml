@@ -1,0 +1,120 @@
+# ---------------------------------------------------------------------------
+# Local service endpoints.  Copy to `sources.local.yaml` and fill in.
+#
+#   cp sources.local.example.yaml sources.local.yaml
+#
+# This file is deep-merged over config.yaml, so you only write the keys you are
+# changing. `sources.local.yaml` is gitignored: put site-specific endpoints and
+# the NAMES of API key variables here, never the keys themselves.
+#
+# API keys are read from environment variables named by `api_key_env`. Export
+# them in your shell or a .env file; they are never written to disk by this
+# tool, never logged, and never included in run_manifest.json.
+#
+# ---------------------------------------------------------------------------
+# IMPORTANT: the URLs below are SHAPES, not verified endpoints. They were
+# written from documentation in an environment with no network access to any of
+# these services, so every one of them should be treated as a guess until
+# `python -m bogorchid preflight --probe` says otherwise. Correct them here.
+# ---------------------------------------------------------------------------
+
+sources:
+
+  # --- Raster, streamed for the study area only ----------------------------
+  # Instead of downloading national 1 m LIDAR, ask the image service for just
+  # the bounding box at the working resolution. Requested in tiles under the
+  # service's own size cap and mosaicked locally.
+  dtm:
+    mode: api
+    kind: arcgis_imageserver          # or: ogc_wcs
+    url: "https://REPLACE-ME/arcgis/rest/services/.../ImageServer"
+    filename: dtm.tif
+    api_key_env: null                 # e.g. EA_API_KEY, if the service needs one
+    auth: {style: query, param: key}  # style: query | header | bearer | none
+    options:
+      interpolation: RSP_BilinearInterpolation   # bilinear: elevation is continuous
+      max_tile_pixels: 2000
+      # extra: {mosaicRule: '{"mosaicMethod":"esriMosaicNone"}'}
+
+  # The WCS form, if that is what you have. Only one of these two shapes is used
+  # - whichever `kind` you set above.
+  #
+  # dtm:
+  #   mode: api
+  #   kind: ogc_wcs
+  #   url: "https://REPLACE-ME/wcs"
+  #   filename: dtm.tif
+  #   options:
+  #     coverage_id: "REPLACE-ME"
+  #     version: "2.0.1"              # or "1.0.0" for older servers
+
+  peat:
+    mode: api
+    kind: arcgis_imageserver
+    url: "https://REPLACE-ME/.../PeatDepth/ImageServer"
+    filename: peat_depth.tif
+    options:
+      interpolation: RSP_BilinearInterpolation
+
+  peat_vegetation:
+    mode: api
+    kind: arcgis_imageserver
+    url: "https://REPLACE-ME/.../PeatVegetation/ImageServer"
+    filename: peat_vegetation.tif
+    options:
+      # NEAREST, always: this layer is class codes, and interpolating them
+      # invents classes that do not exist.
+      interpolation: RSP_NearestNeighbor
+
+  # --- Vector --------------------------------------------------------------
+  # OS NGD Features API (OGC API - Features). The OS Data Hub key goes in the
+  # environment, not here.
+  rivers:
+    mode: api
+    kind: ogc_api_features
+    url: "https://api.os.uk/features/ngd/ofa/v1/collections/REPLACE-ME/items"
+    filename: os_open_rivers.gpkg
+    api_key_env: OS_API_KEY
+    auth: {style: header, header: key}
+    options:
+      limit: 100
+
+  # BGS geology over WFS.
+  geology:
+    mode: api
+    kind: wfs
+    url: "https://REPLACE-ME/geoserver/wfs"
+    filename: bgs_bedrock.gpkg
+    optional: true
+    options:
+      type_names: "REPLACE-ME"
+      version: "2.0.0"
+
+  # --- Species records -----------------------------------------------------
+  # Pulls Hammarbya paludosa occurrences for the study area. Use this to find
+  # records the model does not yet know about - in particular a precise
+  # reference for the SX68 population, which is the highest-value missing input.
+  # Records are NOT added to known_sites automatically: whether a record is
+  # precise enough to calibrate against is an ecological judgement, so the
+  # `records` command reports them and you decide.
+  records:
+    mode: api
+    kind: nbn_occurrences
+    url: "https://records-ws.nbnatlas.org/occurrences"
+    filename: nbn_records.gpkg
+    optional: true
+    options:
+      scientific_name: "Hammarbya paludosa"
+      page_size: 300
+      # The BSBI Distribution Database is not an open API. Its Dartmoor records
+      # need a data request to BSBI, or to the Devon Biodiversity Records
+      # Centre. Add them to known_sites in config.yaml by hand when you get them.
+
+# You can override anything else in config.yaml here too, for example:
+#
+# layers:
+#   sphagnum_classes: [3, 7]
+#   peat_depth_scale_to_cm: 1.0
+#
+# project:
+#   resolution_m: 5

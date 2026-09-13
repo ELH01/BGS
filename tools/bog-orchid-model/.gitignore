@@ -4,3 +4,7 @@ outputs/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Local service endpoints and API key variable names - never commit.
+sources.local.yaml
+.env

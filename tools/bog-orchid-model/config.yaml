@@ -74,13 +74,51 @@ known_sites:
     grid_ref: "SX 69 78"
     precision_m: 1000
     last_seen: 1938
-    source: "A New Flora of Devon - two plants, 1938, L.A. Harvey."
+    source: >
+      A New Flora of Devon - two plants in a bog, 1938, L.A. Harvey,
+      det. T. Stephenson (in Harvey & Leger-Gordon 1953; Greig 1957).
     use_for_calibration: false
     notes: >
-      Historic and almost certainly lost, and at 1 km precision. Retained
-      because an eastern-Dartmoor record widens the habitat envelope the model
-      should be willing to consider, and because the site is worth re-checking
-      in the field.
+      Historic, 1 km precision, and on the east side of the moor rather than the
+      north where both extant sites are. Retained because it widens the habitat
+      envelope the model should be willing to consider, and because the ground
+      is worth re-checking. Verify the tor name against the original: the Flora
+      spells it "Blackaton", and there is a Blackadon Tor / Blackadon Down in
+      this general area, but the grid square SX6978 is the authoritative part
+      of the record. No subsequent Devon record from east Dartmoor.
+
+  # ---- Outside the Dartmoor study area: context only ----------------------
+  # These two are pre-1900 and well outside the National Park, so they are never
+  # scored and never calibrate anything. They are kept here because they are
+  # part of the Devon record set and because BOTH are cases where the habitat
+  # itself has since been destroyed - which is the evidence for the brief's
+  # premise that absence of records reflects recording effort AND real loss,
+  # not unsuitable ground. The run will warn that they fall outside the bbox;
+  # that warning is correct and expected.
+  - name: "Great Haldon (historic, outside study area)"
+    grid_ref: "SX 88 84"
+    precision_m: 10000
+    last_seen: 1863
+    source: "A New Flora of Devon - Haldon, 1863, R. Shute."
+    use_for_calibration: false
+    notes: >
+      Haldon Hills, c.20 km east of Dartmoor. The lowland heath and valley bog
+      here was extensively conifer-planted in the early 20th century; what
+      survives is Great Haldon Heaths SSSI and Little Haldon Heaths SSSI. The
+      habitat that held this record is very unlikely to remain.
+
+  - name: "Combe Martin area (historic, outside study area)"
+    grid_ref: "SS 58 46"
+    precision_m: 10000
+    last_seen: 1899
+    source: >
+      A New Flora of Devon - reported once from the Combe Martin area in the
+      19th century. Exact date and recorder not given in the account consulted.
+    use_for_calibration: false
+    notes: >
+      North Devon, on the Exmoor fringe rather than Dartmoor. `last_seen` is a
+      placeholder for "19th century" - do not treat it as a real date. Listed
+      for completeness of the Devon record set only.
 
 # ---------------------------------------------------------------------------
 # Hard filters. Failing any of these sets suitability to 0 (no-data), not to a
@@ -336,6 +374,26 @@ sources:
     notes: >
       Optional. If absent the geology variable is dropped and the remaining
       weights are renormalised - which on Dartmoor granite costs almost nothing.
+
+  # Species records. Optional, and never folded into known_sites automatically:
+  # whether a record is precise enough to calibrate against is an ecological
+  # judgement, so `python -m bogorchid records` reports what it finds and you
+  # decide what to promote into known_sites.
+  records:
+    mode: api
+    kind: nbn_occurrences
+    url: "https://records-ws.nbnatlas.org/occurrences"
+    filename: nbn_records.gpkg
+    licence: "NBN Atlas - per-dataset licences, check before republishing"
+    optional: true
+    options:
+      scientific_name: "Hammarbya paludosa"
+      page_size: 300
+    notes: >
+      UNVERIFIED endpoint - written from documentation, never reached from the
+      build environment. Run `preflight --probe` or `records` to find out.
+      The BSBI Distribution Database has no open API; its Dartmoor records need
+      a request to BSBI or the Devon Biodiversity Records Centre.
 
   nvc:
     mode: manual

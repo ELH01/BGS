@@ -3,26 +3,27 @@
 Two access modes, deliberately distinguished:
 
 * ``auto``   - an open REST service this module can page through unattended.
+* ``api``    - a service that needs a key, named by ``api_key_env`` and read
+  from the environment. Same machinery as ``auto``, kept separate so that
+  `preflight` can tell you which keys you still need.
 * ``manual`` - a portal download behind a form or a licence click-through. The
   pipeline will not pretend it can fetch these; it tells you precisely which
   file to put where, and refuses to run without them rather than substituting a
   default and producing a confident-looking map built on nothing.
+
+Live sources are cached under ``data/raw/`` after the first fetch, and only the
+study area is ever requested - for the 1 m LIDAR that is the difference between
+tens of megabytes and a national dataset.
 """
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-import requests
-
+from . import services
 from .config import Config, Source
-
-USER_AGENT = "bog-orchid-habitat-model/1.0 (+conservation research)"
-PAGE_SIZE = 1000
-TIMEOUT = 120
 
 
 class AcquisitionError(RuntimeError):
@@ -50,29 +51,27 @@ def source_path(data_dir: str | Path, source: Source) -> Path:
     return raw_dir(data_dir) / source.filename
 
 
-def _session() -> requests.Session:
-    session = requests.Session()
-    session.headers.update({"User-Agent": USER_AGENT})
-    return session
+def _credentials(source: Source) -> services.Credentials:
+    return services.Credentials.from_config(source.auth, source.api_key_env)
 
 
 def probe_featureserver(url: str) -> dict[str, Any]:
-    """Ask a FeatureServer layer to describe itself.
+    """Ask a FeatureServer or ImageServer layer to describe itself.
 
-    Worth running before a full download: Natural England renumber their layer
-    indices from time to time, and the habitat field has had several names.
+    Worth running before anything else: Natural England and BGS renumber their
+    layer indices from time to time, and the habitat field has had several
+    names. `preflight --probe` reports what the service says it is today.
     """
-    with _session() as session:
-        response = session.get(url, params={"f": "json"}, timeout=TIMEOUT)
-        response.raise_for_status()
-        info = response.json()
-    if "error" in info:
-        raise AcquisitionError(f"{url}: {info['error']}")
+    with services._session() as session:
+        info = services.request(session, url, {"f": "json"})
     return {
         "name": info.get("name"),
         "type": info.get("type"),
         "geometryType": info.get("geometryType"),
+        "pixelSize": (info.get("pixelSizeX"), info.get("pixelSizeY")),
         "maxRecordCount": info.get("maxRecordCount"),
+        "maxImageWidth": info.get("maxImageWidth"),
+        "maxImageHeight": info.get("maxImageHeight"),
         "fields": [
             {"name": f.get("name"), "type": f.get("type"), "alias": f.get("alias")}
             for f in info.get("fields", [])
@@ -80,78 +79,37 @@ def probe_featureserver(url: str) -> dict[str, Any]:
     }
 
 
-def fetch_featureserver(
-    url: str,
-    bbox: tuple[float, float, float, float] | None = None,
-    where: str | None = None,
-    out_sr: int = 27700,
-    page_size: int = PAGE_SIZE,
-    max_pages: int = 2000,
-) -> dict[str, Any]:
-    """Page a whole ArcGIS FeatureServer layer into one GeoJSON FeatureCollection.
+def _write_vector(collection: dict[str, Any], path: Path, crs: str, name: str) -> int:
+    import geopandas as gpd
 
-    ArcGIS caps a single response at ``maxRecordCount`` features and signals more
-    with ``exceededTransferLimit``; paging with ``resultOffset`` is the only way
-    to get a complete answer. A query that silently stops at the first page is
-    the classic way to end up with a Priority Habitat layer covering the
-    north-east corner of the moor and nothing else.
-    """
-    query_url = url.rstrip("/") + "/query"
-    params: dict[str, Any] = {
-        "f": "geojson",
-        "where": where or "1=1",
-        "outFields": "*",
-        "outSR": out_sr,
-        "returnGeometry": "true",
-        "resultRecordCount": page_size,
-    }
-    if bbox is not None:
-        params.update(
-            {
-                "geometry": json.dumps(
-                    {
-                        "xmin": bbox[0], "ymin": bbox[1],
-                        "xmax": bbox[2], "ymax": bbox[3],
-                        "spatialReference": {"wkid": out_sr},
-                    }
-                ),
-                "geometryType": "esriGeometryEnvelope",
-                "inSR": out_sr,
-                "spatialRel": "esriSpatialRelIntersects",
-            }
+    features = collection.get("features") or []
+    if not features:
+        raise AcquisitionError(
+            f"{name}: the service returned no features for the study area. Check "
+            f"the layer id in the URL and any `where`/`options` filter with "
+            f"`preflight --probe`."
         )
-
-    features: list[dict[str, Any]] = []
-    with _session() as session:
-        for page in range(max_pages):
-            params["resultOffset"] = page * page_size
-            response = session.get(query_url, params=params, timeout=TIMEOUT)
-            response.raise_for_status()
-            payload = response.json()
-            if "error" in payload:
-                raise AcquisitionError(f"{query_url}: {payload['error']}")
-            batch = payload.get("features") or []
-            features.extend(batch)
-            if not payload.get("properties", {}).get("exceededTransferLimit") and (
-                len(batch) < page_size
-            ):
-                break
-        else:  # pragma: no cover - only on an implausibly large layer
-            raise AcquisitionError(
-                f"{query_url}: stopped after {max_pages} pages; narrow the bounding box"
-            )
-
-    return {"type": "FeatureCollection", "features": features}
+    frame = gpd.GeoDataFrame.from_features(features)
+    if frame.crs is None:
+        frame = frame.set_crs(crs, allow_override=True)
+    frame = frame.to_crs(crs)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_file(path, driver="GPKG")
+    return len(frame)
 
 
 def acquire_source(
     config: Config, source_name: str, data_dir: str | Path, overwrite: bool = False
 ) -> LayerStatus:
-    """Fetch one `auto` source to disk. `manual` sources return instructions."""
+    """Fetch one live source to the local cache.
+
+    `manual` sources are not fetched: the pipeline returns instructions rather
+    than guessing at a download URL behind a licence click-through.
+    """
     source = config.source(source_name)
     path = source_path(data_dir, source)
 
-    if source.mode == "manual":
+    if not source.is_live:
         return LayerStatus(
             name=source_name,
             path=path,
@@ -170,32 +128,80 @@ def acquire_source(
     if path.exists() and not overwrite:
         return LayerStatus(
             name=source_name, path=path, present=True, optional=source.optional,
-            mode=source.mode, detail="already present (use --overwrite to refetch)",
+            mode=source.mode, detail="cached (use --overwrite to refetch)",
         )
 
-    if source.kind != "arcgis_featureserver" or not source.url:
+    bbox = config.study_area_bbox
+    credentials = _credentials(source)
+    options = dict(source.options or {})
+    extra = options.pop("extra", None)
+    detail = ""
+
+    if source.kind == "arcgis_featureserver":
+        collection = services.fetch_arcgis_featureserver(
+            source.url, bbox=bbox, where=source.where,
+            credentials=credentials, extra=extra, **options,
+        )
+        detail = f"fetched {_write_vector(collection, path, config.crs, source_name):,} features"
+
+    elif source.kind == "ogc_api_features":
+        collection = services.fetch_ogc_api_features(
+            source.url, bbox=bbox, credentials=credentials, extra=extra, **options
+        )
+        detail = f"fetched {_write_vector(collection, path, config.crs, source_name):,} features"
+
+    elif source.kind == "wfs":
+        type_names = options.pop("type_names", None)
+        if not type_names:
+            raise AcquisitionError(
+                f"{source_name}: a WFS source needs `options.type_names`"
+            )
+        collection = services.fetch_wfs(
+            source.url, type_names=type_names, bbox=bbox,
+            srs=config.crs, credentials=credentials, extra=extra, **options,
+        )
+        detail = f"fetched {_write_vector(collection, path, config.crs, source_name):,} features"
+
+    elif source.kind == "arcgis_imageserver":
+        services.fetch_arcgis_imageserver(
+            source.url, bbox=bbox, resolution=config.resolution_m,
+            destination=path, credentials=credentials, extra=extra, **options,
+        )
+        detail = f"streamed {path.stat().st_size / 1e6:.1f} MB for the study area"
+
+    elif source.kind == "ogc_wcs":
+        coverage_id = options.pop("coverage_id", None)
+        if not coverage_id:
+            raise AcquisitionError(
+                f"{source_name}: a WCS source needs `options.coverage_id`"
+            )
+        services.fetch_wcs_coverage(
+            source.url, coverage_id=coverage_id, bbox=bbox,
+            resolution=config.resolution_m, destination=path, srs=config.crs,
+            credentials=credentials, extra=extra, **options,
+        )
+        detail = f"streamed {path.stat().st_size / 1e6:.1f} MB for the study area"
+
+    elif source.kind == "nbn_occurrences":
+        scientific_name = options.pop("scientific_name", "Hammarbya paludosa")
+        records = services.fetch_nbn_occurrences(
+            source.url, scientific_name=scientific_name, bbox=bbox,
+            credentials=credentials, extra=extra, **options,
+        )
+        frame = services.occurrences_to_frame(records)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if len(frame):
+            frame.to_file(path, driver="GPKG")
+        detail = f"fetched {len(frame):,} occurrence record(s)"
+
+    else:  # pragma: no cover - guarded by config validation
         raise AcquisitionError(
-            f"source {source_name!r} is marked auto but has no supported "
-            f"`kind`/`url` to fetch from"
+            f"{source_name}: no client for kind {source.kind!r}"
         )
 
-    import geopandas as gpd
-
-    collection = fetch_featureserver(
-        source.url, bbox=config.study_area_bbox, where=source.where
-    )
-    if not collection["features"]:
-        raise AcquisitionError(
-            f"{source_name}: the service returned no features for the study area. "
-            f"Check the layer index in the URL and the `where` clause with "
-            f"`preflight --probe`."
-        )
-    frame = gpd.GeoDataFrame.from_features(collection["features"], crs=config.crs)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    frame.to_file(path, driver="GPKG")
     return LayerStatus(
-        name=source_name, path=path, present=True, optional=source.optional,
-        mode=source.mode, detail=f"fetched {len(frame):,} features",
+        name=source_name, path=path, present=path.exists(),
+        optional=source.optional, mode=source.mode, detail=detail,
     )
 
 
@@ -230,6 +236,14 @@ def preflight(config: Config, data_dir: str | Path) -> list[LayerStatus]:
                 )
             else:
                 instructions = f"Run: python -m bogorchid acquire --source {name}"
+                if source.api_key_env:
+                    import os as _os
+
+                    have = bool(_os.environ.get(source.api_key_env))
+                    instructions += (
+                        f"\n    API key: ${source.api_key_env} "
+                        f"{'is set' if have else 'is NOT set - export it first'}"
+                    )
         statuses.append(
             LayerStatus(
                 name=name, path=path, present=present, optional=source.optional,

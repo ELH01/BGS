@@ -117,7 +117,21 @@ Variable scores at the record (weight x membership = contribution):
 
 - Grid ref: `SX 69 78` (reference only)
 - Reference precision: 1,000 m - too coarse to read a single cell; window statistics are used instead
-- Source: A New Flora of Devon - two plants, 1938, L.A. Harvey.
+- Source: A New Flora of Devon - two plants in a bog, 1938, L.A. Harvey, det. T. Stephenson (in Harvey & Leger-Gordon 1953; Greig 1957).
+- **Outside the model grid.**
+
+### Great Haldon (historic, outside study area)
+
+- Grid ref: `SX 88 84` (reference only)
+- Reference precision: 10,000 m - too coarse to read a single cell; window statistics are used instead
+- Source: A New Flora of Devon - Haldon, 1863, R. Shute.
+- **Outside the model grid.**
+
+### Combe Martin area (historic, outside study area)
+
+- Grid ref: `SS 58 46` (reference only)
+- Reference precision: 10,000 m - too coarse to read a single cell; window statistics are used instead
+- Source: A New Flora of Devon - reported once from the Combe Martin area in the 19th century. Exact date and recorder not given in the account consulted.
 - **Outside the model grid.**
 
 ## Verdict

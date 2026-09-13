@@ -94,9 +94,32 @@ class Source:
     licence: str = ""
     optional: bool = False
     notes: str = ""
+    # Name of the environment variable holding this service's API key, if any.
+    # The key itself is never stored in config, on disk, or in the run manifest.
+    api_key_env: str | None = None
+    auth: dict[str, Any] = field(default_factory=dict)
+    # Kind-specific settings (coverage id, type names, extra query parameters).
+    options: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_live(self) -> bool:
+        """True if this source is fetched from a service rather than a file drop."""
+        return self.mode in {"auto", "api"}
 
 
 VALID_SCORING_METHODS = {"weighted_mean", "weighted_geometric"}
+
+VALID_SOURCE_MODES = {"auto", "api", "manual"}
+
+# Service protocols `bogorchid.services` knows how to speak.
+VALID_SOURCE_KINDS = {
+    "arcgis_featureserver",
+    "arcgis_imageserver",
+    "ogc_wcs",
+    "ogc_api_features",
+    "wfs",
+    "nbn_occurrences",
+}
 
 
 @dataclass
@@ -231,27 +254,82 @@ def _parse_variable(name: str, entry: Mapping[str, Any]) -> Variable:
 def _parse_source(name: str, entry: Mapping[str, Any]) -> Source:
     where = f"sources.{name}"
     mode = str(entry.get("mode", "manual"))
-    if mode not in {"auto", "manual"}:
-        raise ConfigError(f"{where}: mode must be 'auto' or 'manual', got {mode!r}")
+    if mode not in VALID_SOURCE_MODES:
+        raise ConfigError(
+            f"{where}: mode must be one of {sorted(VALID_SOURCE_MODES)}, got {mode!r}"
+        )
+    kind = entry.get("kind")
+    if kind is not None and kind not in VALID_SOURCE_KINDS:
+        raise ConfigError(
+            f"{where}: kind {kind!r} is not supported; expected one of "
+            f"{sorted(VALID_SOURCE_KINDS)}"
+        )
+    if mode in {"auto", "api"}:
+        if not kind:
+            raise ConfigError(f"{where}: mode {mode!r} requires a `kind`")
+        if not entry.get("url"):
+            raise ConfigError(f"{where}: mode {mode!r} requires a `url`")
     return Source(
         name=name,
         mode=mode,
         filename=entry.get("filename"),
-        kind=entry.get("kind"),
+        kind=kind,
         url=entry.get("url"),
         where=entry.get("where"),
         portal=entry.get("portal"),
         licence=str(entry.get("licence", "")),
         optional=bool(entry.get("optional", False)),
         notes=str(entry.get("notes", "")).strip(),
+        api_key_env=entry.get("api_key_env"),
+        auth=dict(entry.get("auth") or {}),
+        options=dict(entry.get("options") or {}),
     )
 
 
-def load_config(path: str | Path) -> Config:
+def deep_merge(base: Mapping[str, Any], overlay: Mapping[str, Any]) -> dict[str, Any]:
+    """Recursively merge ``overlay`` over ``base``. Overlay scalars and lists win."""
+    merged = dict(base)
+    for key, value in overlay.items():
+        if (
+            key in merged
+            and isinstance(merged[key], Mapping)
+            and isinstance(value, Mapping)
+        ):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+DEFAULT_OVERLAY_NAME = "sources.local.yaml"
+
+
+def load_config(path: str | Path, overlay: str | Path | None = None) -> Config:
+    """Load the model configuration, optionally overlaid with local settings.
+
+    The overlay exists so that service endpoints, layer ids and the names of
+    environment variables holding API keys can be supplied without editing the
+    committed config - and so that a site-specific endpoint never ends up in
+    version control by accident. If ``overlay`` is not given, a file named
+    ``sources.local.yaml`` beside the config is used when present.
+    """
     path = Path(path)
     if not path.exists():
         raise ConfigError(f"config file not found: {path}")
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+    if overlay is None:
+        candidate = path.parent / DEFAULT_OVERLAY_NAME
+        overlay = candidate if candidate.exists() else None
+    if overlay is not None:
+        overlay_path = Path(overlay)
+        if not overlay_path.exists():
+            raise ConfigError(f"overlay file not found: {overlay_path}")
+        extra = yaml.safe_load(overlay_path.read_text(encoding="utf-8")) or {}
+        if not isinstance(extra, Mapping):
+            raise ConfigError(f"{overlay_path}: expected a mapping at the top level")
+        raw = deep_merge(raw, extra)
+        raw.setdefault("_overlay", str(overlay_path))
 
     project = raw.get("project") or {}
     resolution = float(project.get("resolution_m", 10.0))

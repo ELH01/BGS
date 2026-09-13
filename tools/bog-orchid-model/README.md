@@ -56,31 +56,94 @@ it, re-run, and compare the calibration report; nothing is hidden in code.
 
 ## Known records
 
-| Site | Grid ref | Precision | Last seen | Role |
+Six Devon records are known to this model. Only two are precise enough to
+calibrate against.
+
+| Site | Grid ref | Precision | Date | Role |
 |---|---|---|---|---|
-| Raybarrow Pool area | SX 64524 90050 | 10 m | — | calibration |
-| Steeperton Brook | SX 62406 89005 | 10 m | 1998 | calibration |
-| Unnamed SX68 site | SX68 | **10 km** | 2012 | reference only |
-| Webburn Valley below Blackaton Tor | SX6978 | 1 km | 1938 | reference only |
+| Raybarrow Pool area | SX 64524 90050 | 10 m | — | **calibration** |
+| Steeperton Brook | SX 62406 89005 | 10 m | 1984–1998 | **calibration** |
+| Unnamed SX68 site | SX68 | 10 km | 1994–2012 | reference |
+| Webburn Valley below Blackaton Tor | SX6978 | 1 km | 1938 | reference |
+| Great Haldon | Haldon, c.SX88 | 10 km | 1863 | context (outside study area) |
+| Combe Martin area | c.SS54 | 10 km | 19th c. | context (outside study area) |
 
-The first two were supplied with the brief. **The other two were found during
-this work** in *A New Flora of Devon* and were not in the original brief:
+The first two came with the brief. The other four were found in
+[*A New Flora of Devon*](https://devonassoc.org.uk/f16/Flora22.pdf) during this
+work. **Every one of them is old enough, or vague enough, that the land it
+refers to may no longer be what it was** — which is exactly why they are
+weighted the way they are.
 
-- Steeperton Brook matches the Flora's "SX625889" (N. Baldock 1984; six plants
-  1997, five 1998, W.H. Tucker) to within ~155 m — same locality.
-- The **SX68 site is a separate, recently monitored population**: recorded
-  annually from 1994, maximum 25 plants in 2000 "scattered over more than one
-  flush" (R.D. Hutchings & R. Avery), five plants 2009, six in 2011 and 2012.
-  Only the 10 km square is published, which is far too coarse to calibrate
-  against. **Getting its precise grid reference from the BSBI Distribution
-  Database or the Devon Biodiversity Records Centre is the single
-  highest-value input still missing from this model.**
-- The 1938 Webburn Valley record is historic and probably lost, but an
-  eastern-Dartmoor locality widens the envelope worth considering.
+### The extant records
 
-Records too coarse to localise are **flagged, not excluded**: excluding a 10 km
-square would discard most of the moor. Candidates falling inside one carry it
-in the `within_coarse_record` column — one of them may simply *be* that site.
+**Steeperton Brook, SX625889** — recorded 1984 (N. Baldock), six plants 1997
+and five 1998 (W.H. Tucker). Matches the supplied SX 62406 89005 to ~155 m, so
+they are taken to be the same locality. *Land use caveat:* this site sits
+immediately upstream of **Taw Marsh**, where the North Devon Water Board sank
+production boreholes under the 1959 North Devon Water Act, over the objections
+of the Dartmoor amenity societies. Most of Taw Marsh was drained as a result.
+The scheme has since **closed**, which raises a real possibility of
+hydrological recovery in the Taw valley — and makes this catchment worth
+surveying on its own merits, not only where the model scores it highest. No
+record here since 1998.
+
+**Unnamed SX68 site** — recorded annually from 1994, maximum 25 plants in 2000
+*"scattered over more than one flush"* (R.D. Hutchings & R. Avery); five plants
+2009 (N. Baldock); six in 2011 and again in 2012 (R.E.N. Smith). This is a
+genuinely extant, monitored population and the best-documented of the lot — and
+the only published location is the **10 km square**. That is far too coarse to
+calibrate against and far too coarse to exclude from the shortlist without
+discarding most of the moor.
+
+> **This is the single highest-value input still missing.** A precise grid
+> reference for this site, from the BSBI Distribution Database or the Devon
+> Biodiversity Records Centre, would take the calibration set from two points to
+> three and would let the model be tested against a population still present.
+> The "more than one flush" detail is also directly informative: it implies a
+> flush *system*, which is what the patch-context tie-break is designed to find.
+
+### The lapsed records, and what happened to the ground
+
+These are the ones to treat with most care. A record is evidence that the
+habitat was suitable **then**; it is not evidence about now.
+
+**Webburn Valley below Blackaton Tor, SX6978, 1938** — two plants in a bog,
+L.A. Harvey, det. T. Stephenson (in Harvey & Leger-Gordon 1953; Greig 1957).
+Nearly 90 years old, 1 km precision, and the only record from **east** Dartmoor;
+both extant sites are in the north. Worth re-checking in the field, and worth
+noting that it widens the envelope the model should be willing to consider
+beyond the northern high moor. The tor name should be verified against the
+original record — the Flora spells it "Blackaton", and there is a Blackadon
+Tor / Blackadon Down in this general area; the grid square is the reliable part.
+
+**Great Haldon, 1863, R. Shute** — the Haldon Hills, c.20 km east of Dartmoor.
+The lowland heath and valley bog here was extensively **planted with conifer in
+the early 20th century**; what survives is fragmented into Great Haldon Heaths
+and Little Haldon Heaths SSSIs. The habitat that held this record is very
+unlikely to still exist.
+
+**Combe Martin area, 19th century** — North Devon, on the Exmoor fringe. Only
+"reported once from the Combe Martin area" in the account consulted; no date or
+recorder recovered. Listed for completeness of the Devon record set.
+
+Both 19th-century sites are outside the study area and are never scored. They
+are kept because they make the brief's premise concrete: *H. paludosa* has
+declined in Britain since the late 19th century principally through **drainage
+of its mire habitats**, so absence of modern records reflects a mixture of
+under-recording *and* genuine habitat destruction — not evidence that the
+remaining ground is unsuitable.
+
+### How the model treats record age and precision
+
+- Only `use_for_calibration: true` records are used to rank the map or derive
+  the elevation band. Currently that is the two precise ones.
+- Records coarser than the working resolution are **flagged, not excluded**.
+  Candidates falling inside a coarse record's square carry it in the
+  `within_coarse_record` column — one of them may simply *be* that site.
+- Nothing in the model down-weights a record for age, because a record's age
+  tells you about the *site*, not about the *habitat description* the weights
+  are built from. Age is surfaced in the report and this README so you can
+  judge it; it is not silently baked into a number.
 
 ## Installing
 
@@ -90,25 +153,66 @@ pip install -r requirements.txt
 
 ## Getting the data
 
+Nothing needs to be downloaded by hand where a service exists. Each live source
+is asked for **only the study bounding box**, at the working resolution, and
+cached under `data/raw/`. For the 1 m LIDAR that is the difference between tens
+of megabytes and a national dataset.
+
 ```bash
-python -m bogorchid preflight            # what is present, what is missing, where to get it
-python -m bogorchid preflight --probe    # query the ArcGIS services for their current schema
-python -m bogorchid acquire              # fetch what can be fetched unattended
+python -m bogorchid preflight            # what is present, what is missing, which keys are unset
+python -m bogorchid preflight --probe    # ask each service to describe itself
+python -m bogorchid acquire              # fetch everything fetchable
+python -m bogorchid records              # pull occurrence records; report calibration candidates
 ```
 
-`preflight` prints a download instruction for every missing layer. Two layers
-can be fetched automatically (Natural England ArcGIS FeatureServer, paged);
-the rest are portal downloads behind a form or licence click-through.
+### Supplying endpoints
+
+Endpoints live in config, not code. Copy the example overlay and fill in
+whatever you have:
+
+```bash
+cp sources.local.example.yaml sources.local.yaml
+```
+
+`sources.local.yaml` is deep-merged over `config.yaml` and is **gitignored**, so
+site-specific endpoints never reach version control. Supported protocols:
+
+| `kind` | Use | Notes |
+|---|---|---|
+| `arcgis_featureserver` | Vector, ArcGIS REST | Paged on `resultOffset`; handles `exceededTransferLimit` |
+| `arcgis_imageserver` | Raster, ArcGIS REST | `exportImage`, tiled under the service cap and mosaicked |
+| `ogc_wcs` | Raster, OGC WCS | `GetCoverage`, versions 2.0.1 and 1.0.0 |
+| `ogc_api_features` | Vector, OGC API - Features | Follows the `next` link, as OS NGD implements it |
+| `wfs` | Vector, OGC WFS | Index-paged; 2.0.0 and 1.1.0 parameter names |
+| `nbn_occurrences` | Species records | NBN Atlas occurrence search, reprojected to EPSG:27700 |
+
+**API keys are never stored in config.** A source names an environment variable
+via `api_key_env`; the key is read from the environment at request time and is
+never written to disk, logged, or included in `run_manifest.json`. `auth.style`
+selects `query`, `header` or `bearer` placement.
+
+### Layers and where they come from
 
 | Layer | Source | Licence | Role |
 |---|---|---|---|
 | Priority Habitats Inventory | Natural England ArcGIS FeatureServer | OGL | Hard filter — bounds the search to mire/flush |
 | National Park boundary | Natural England ArcGIS FeatureServer | OGL | Study area |
 | Peat depth + vegetation | [England Peat Map (NERR149, 2025)](https://england-peat-map-portal-ncea.hub.arcgis.com/) | OGL | Hard filter + Sphagnum flag |
-| LIDAR Composite DTM 1 m (2 m fallback) | [EA Survey Open Data](https://environment.data.gov.uk/survey) | OGL | Slope, flow accumulation, TWI |
-| OS Open Rivers | [OS OpenData](https://osdatahub.os.uk/downloads/open/OpenRivers) | OGL | Distance to watercourse |
-| BGS bedrock geology | [BGS OpenGeoscience](https://www.bgs.ac.uk/datasets/bgs-geology-625k-digmapgb-625/) | check terms | Base-richness proxy (optional) |
+| LIDAR Composite DTM 1 m | [EA Survey Open Data](https://environment.data.gov.uk/survey) | OGL | Slope, flow accumulation, TWI |
+| OS Open Rivers / NGD | [OS Data Hub](https://osdatahub.os.uk/) | OGL | Distance to watercourse |
+| BGS bedrock geology | [BGS OpenGeoscience](https://www.bgs.ac.uk/) | check terms | Base-richness proxy (optional) |
+| Occurrence records | [NBN Atlas](https://nbnatlas.org/) | per dataset | Finding records the model does not know about |
 | NVC survey data | Enquire: Natural England / Dartmoor NPA | by agreement | M1/M21 match (optional, off by default) |
+
+The BSBI Distribution Database has no open API. Its Dartmoor records need a
+request to BSBI or to the Devon Biodiversity Records Centre; add what you get
+to `known_sites` by hand.
+
+**Records are never promoted into `known_sites` automatically.** Whether a
+record is precise enough to calibrate against is an ecological judgement, so
+`records` reports what it found — year, coordinate uncertainty, distance to the
+nearest site already known — and flags the ones that look both precise and new.
+You decide.
 
 **Two things must be checked against the real data before trusting any output:**
 
@@ -154,7 +258,7 @@ Edit `config.yaml`, re-run, compare `calibration_report.md`. Useful knobs:
 ## Running the tests
 
 ```bash
-python -m pytest tests/ -q      # 83 tests, ~10s
+python -m pytest tests/ -q      # 101 tests, ~11s
 ```
 
 The suite encodes the ecological claims as assertions — that standing water
@@ -201,13 +305,15 @@ so a later change to the weights that breaks one of them fails loudly.
 
 ```
 config.yaml              the model: filters, weights, curves, sources
+sources.local.example.yaml  template for your own service endpoints
 bogorchid/
   osgb.py                British National Grid references
   membership.py          the scoring curves
   config.py              loading and strict validation
   terrain.py             pit filling, slope, D8 flow accumulation, TWI
   raster.py              model grid, reprojection, rasterising, distance
-  sources.py             acquisition and preflight
+  services.py            live-service clients: ArcGIS, WCS, OGC API, WFS, NBN
+  sources.py             acquisition, caching and preflight
   score.py               hard filters and the weighted overlay
   calibrate.py           known-site diagnostics and the pass/fail verdict
   candidates.py          ranked shortlist
@@ -215,7 +321,7 @@ bogorchid/
   pipeline.py            orchestration
   synthetic.py           fictional layers, for testing without the real data
   cli.py                 command line
-tests/                   83 tests
+tests/                   101 tests
 example_output/          a demo run, on synthetic data
 ```
 
@@ -223,10 +329,21 @@ example_output/          a demo run, on synthetic data
 
 This model was built in an environment with no network access to the Natural
 England, Environment Agency, BGS, Ordnance Survey, NBN Atlas or BSBI services —
-all are blocked by egress policy. The pipeline has therefore **never been run
-against the real layers**. It has been run end to end against synthetic layers
-(see `example_output/`), which exercises every step including file I/O,
-reprojection and field-name resolution, but the acquisition URLs and the
-field-name lists in `pipeline.py` are written from documentation and have not
-been confirmed against the live services. **Run `preflight --probe` first** and
-expect to correct a layer index or a field name.
+all are blocked by egress policy, which refuses the connection before any
+authentication happens — so API keys would not have helped there either. The
+pipeline has therefore **never been run against the real layers**.
+
+It has been run end to end against synthetic layers (see `example_output/`),
+which exercises every step including file I/O, reprojection, rasterisation and
+field-name resolution. The service clients are covered by tests against a stub
+transport, which pins down paging, credential placement, raster tiling and error
+handling — but not whether any given URL is correct.
+
+**Every endpoint in `config.yaml` and `sources.local.example.yaml` should be
+treated as a guess until `preflight --probe` says otherwise**, and the
+field-name lists in `pipeline.py` (PHI habitat field, BGS lithology field) are
+written from documentation. Expect to correct a layer index or a field name on
+first contact. The failure modes are loud by design: a wrong layer id gives
+"the service returned no features for the study area", a wrong coverage gives
+"returned N bytes that are not a TIFF", and a blocked host gives a message that
+says so explicitly.

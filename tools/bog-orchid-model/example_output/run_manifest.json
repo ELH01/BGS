@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-09-12T18:45:05+00:00",
+  "generated_utc": "2026-09-12T18:55:16+00:00",
   "config_file": "/home/user/BGS/tools/bog-orchid-model/config.yaml",
   "crs": "EPSG:27700",
   "resolution_m": 10.0,
@@ -48,28 +48,28 @@
   "calibration_warnings": [],
   "candidates": 50,
   "provenance": {
-    "dtm": "/tmp/claude-0/ex/data/raw/dtm.tif",
+    "dtm": "/tmp/claude-0/ex2/data/raw/dtm.tif",
     "priority_habitat": {
-      "path": "/tmp/claude-0/ex/data/raw/priority_habitats.gpkg",
+      "path": "/tmp/claude-0/ex2/data/raw/priority_habitats.gpkg",
       "field": "Main_Habit",
       "polygons_selected": 811
     },
     "peat_depth": {
-      "path": "/tmp/claude-0/ex/data/raw/peat_depth.tif",
+      "path": "/tmp/claude-0/ex2/data/raw/peat_depth.tif",
       "scale_to_cm": 1.0
     },
     "sphagnum_flag": {
-      "path": "/tmp/claude-0/ex/data/raw/peat_vegetation.tif",
+      "path": "/tmp/claude-0/ex2/data/raw/peat_vegetation.tif",
       "classes": [
         3
       ]
     },
     "rivers": {
-      "path": "/tmp/claude-0/ex/data/raw/os_open_rivers.gpkg",
+      "path": "/tmp/claude-0/ex2/data/raw/os_open_rivers.gpkg",
       "features": 4
     },
     "geology": {
-      "path": "/tmp/claude-0/ex/data/raw/bgs_bedrock.gpkg",
+      "path": "/tmp/claude-0/ex2/data/raw/bgs_bedrock.gpkg",
       "field": "RCS_D",
       "class_counts": {
         "acidic": 1,
@@ -79,12 +79,16 @@
     }
   },
   "notes": [
+    "WARNING: known site Great Haldon (historic, outside study area) (SX 88 84, last seen 1863) at (288500, 84500) falls outside project.study_area_bbox",
+    "WARNING: known site Combe Martin area (historic, outside study area) (SS 58 46, last seen 1899) at (258500, 146500) falls outside project.study_area_bbox",
     "DTM: 567,600 valid cells, 271-680 m.",
     "Priority Habitat: kept 811 of 811 polygons matching ['Blanket Bog', 'Upland Flushes, Fens and Swamps'] on field 'Main_Habit'.",
     "Priority Habitat extent buffered outwards by 50 m.",
     "Peat depth: 567,600 valid cells, 0.0-184.0 cm (after scaling).",
     "Sphagnum-dominated: 26,977 cells from classes [3].",
     "Unnamed SX68 site (annual monitoring 1994-2012): NOT excluded - its reference is only precise to 10,000 m, and excluding a square that size would discard far more ground than the record justifies. Candidates falling inside it are flagged in the `within_coarse_record` column instead, because one of them may simply be this site.",
+    "Great Haldon (historic, outside study area): NOT excluded - its reference is only precise to 10,000 m, and excluding a square that size would discard far more ground than the record justifies. Candidates falling inside it are flagged in the `within_coarse_record` column instead, because one of them may simply be this site.",
+    "Combe Martin area (historic, outside study area): NOT excluded - its reference is only precise to 10,000 m, and excluding a square that size would discard far more ground than the record justifies. Candidates falling inside it are flagged in the `within_coarse_record` column instead, because one of them may simply be this site.",
     "Excluded a 500 m radius around 2 precisely-located known record(s).",
     "91 cells share the top score (1.0000) exactly - the trapezoid plateaus mean many cells are equally suitable by the model's own logic. Ranking among them is broken by mean suitability within 100 m (see the `patch_score` column), not by raster order."
   ],
@@ -132,9 +136,27 @@
         "grid_ref": "SX 69 78",
         "precision_m": 1000,
         "last_seen": 1938,
-        "source": "A New Flora of Devon - two plants, 1938, L.A. Harvey.",
+        "source": "A New Flora of Devon - two plants in a bog, 1938, L.A. Harvey, det. T. Stephenson (in Harvey & Leger-Gordon 1953; Greig 1957).\n",
         "use_for_calibration": false,
-        "notes": "Historic and almost certainly lost, and at 1 km precision. Retained because an eastern-Dartmoor record widens the habitat envelope the model should be willing to consider, and because the site is worth re-checking in the field.\n"
+        "notes": "Historic, 1 km precision, and on the east side of the moor rather than the north where both extant sites are. Retained because it widens the habitat envelope the model should be willing to consider, and because the ground is worth re-checking. Verify the tor name against the original: the Flora spells it \"Blackaton\", and there is a Blackadon Tor / Blackadon Down in this general area, but the grid square SX6978 is the authoritative part of the record. No subsequent Devon record from east Dartmoor.\n"
+      },
+      {
+        "name": "Great Haldon (historic, outside study area)",
+        "grid_ref": "SX 88 84",
+        "precision_m": 10000,
+        "last_seen": 1863,
+        "source": "A New Flora of Devon - Haldon, 1863, R. Shute.",
+        "use_for_calibration": false,
+        "notes": "Haldon Hills, c.20 km east of Dartmoor. The lowland heath and valley bog here was extensively conifer-planted in the early 20th century; what survives is Great Haldon Heaths SSSI and Little Haldon Heaths SSSI. The habitat that held this record is very unlikely to remain.\n"
+      },
+      {
+        "name": "Combe Martin area (historic, outside study area)",
+        "grid_ref": "SS 58 46",
+        "precision_m": 10000,
+        "last_seen": 1899,
+        "source": "A New Flora of Devon - reported once from the Combe Martin area in the 19th century. Exact date and recorder not given in the account consulted.\n",
+        "use_for_calibration": false,
+        "notes": "North Devon, on the Exmoor fringe rather than Dartmoor. `last_seen` is a placeholder for \"19th century\" - do not treat it as a real date. Listed for completeness of the Devon record set only.\n"
       }
     ],
     "hard_filters": {
@@ -333,6 +355,19 @@
         "licence": "BGS OpenGeoscience - check licence terms for your use",
         "optional": true,
         "notes": "Optional. If absent the geology variable is dropped and the remaining weights are renormalised - which on Dartmoor granite costs almost nothing.\n"
+      },
+      "records": {
+        "mode": "api",
+        "kind": "nbn_occurrences",
+        "url": "https://records-ws.nbnatlas.org/occurrences",
+        "filename": "nbn_records.gpkg",
+        "licence": "NBN Atlas - per-dataset licences, check before republishing",
+        "optional": true,
+        "options": {
+          "scientific_name": "Hammarbya paludosa",
+          "page_size": 300
+        },
+        "notes": "UNVERIFIED endpoint - written from documentation, never reached from the build environment. Run `preflight --probe` or `records` to find out. The BSBI Distribution Database has no open API; its Dartmoor records need a request to BSBI or the Devon Biodiversity Records Centre.\n"
       },
       "nvc": {
         "mode": "manual",
